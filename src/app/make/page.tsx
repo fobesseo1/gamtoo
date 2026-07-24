@@ -51,7 +51,7 @@ async function pickPhotoTemplate(): Promise<PosterTemplate> {
 
 export default function MakePage() {
   const [step, setStep] = useState<Step>("form");
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoFile, setPhotoFile] = useState<Blob | null>(null);
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
   const [userText, setUserText] = useState("");
   const [location, setLocation] = useState("");
@@ -93,19 +93,35 @@ export default function MakePage() {
   const canSubmit = Boolean(photoFile) || userText.trim().length > 0;
   const displayedPoster = bgRemoved && cutoutPoster ? cutoutPoster : originalPoster;
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
-    setPhotoFile(file);
-    setPhotoPreviewUrl(file ? URL.createObjectURL(file) : null);
+    if (!file) {
+      setPhotoFile(null);
+      setPhotoPreviewUrl(null);
+      return;
+    }
+
+    // Android Chrome/Brave can invalidate a picked File's underlying content
+    // reference after enough time passes before it's read (throws "The
+    // requested file could not be read... permission problems... after a
+    // reference to a file was acquired" — real device bug, not ours) —
+    // reading its bytes into a plain Blob right away, instead of holding
+    // onto the File across however long the user spends on the rest of the
+    // form, sidesteps it entirely.
+    const buffer = await file.arrayBuffer();
+    const blob = new Blob([buffer], { type: file.type });
+
+    setPhotoFile(blob);
+    setPhotoPreviewUrl(URL.createObjectURL(blob));
     // Only worth starting the real removal early if the template we'll
     // actually use it on ("photo") expects a cutout at all — a
     // "photo-noremovebg" pick never touches background removal, so there's
     // nothing to warm up for it. If they swap photos before submitting,
     // handleSubmit's call below reuses this by identity when it's the same
-    // File, or starts a fresh run that queues behind this one otherwise (the
+    // Blob, or starts a fresh run that queues behind this one otherwise (the
     // shared worker can't cancel an in-flight run — see
     // background-removal.ts — so a swap just costs a wait, not a redo).
-    if (file && preselectedTemplate?.category === "photo") void removeBackground(file);
+    if (preselectedTemplate?.category === "photo") void removeBackground(blob);
   };
 
   const handleRemovePhoto = () => {

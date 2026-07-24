@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { logout } from "@/app/admin/login/actions";
 import { parseSvgTemplate, type ParseSvgTemplateResult } from "@/lib/template-authoring";
 import { renderPoster, createSamplePhotoBlob } from "@/lib/render";
 import {
@@ -147,12 +148,20 @@ export default function AdminTemplatesPage() {
             레이어를 이름 붙여 내보낸 SVG를 업로드하세요.
           </p>
         </div>
-        <Link
-          href="/admin/templates/library"
-          className="shrink-0 rounded border border-ink px-3 py-2 text-xs font-medium"
-        >
-          템플릿 목록 관리 →
-        </Link>
+        <div className="flex shrink-0 items-center gap-2">
+          <Link
+            href="/admin/templates/library"
+            className="rounded border border-ink px-3 py-2 text-xs font-medium"
+          >
+            템플릿 목록 관리 →
+          </Link>
+          <button
+            onClick={() => logout()}
+            className="rounded border border-hairline px-3 py-2 text-xs font-medium text-muted"
+          >
+            로그아웃
+          </button>
+        </div>
       </div>
 
       <label className="flex h-24 w-full cursor-pointer items-center justify-center rounded-md border border-dashed border-border-strong text-sm text-muted">

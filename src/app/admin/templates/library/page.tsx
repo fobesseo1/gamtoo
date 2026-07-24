@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
+import { logout } from "@/app/admin/login/actions";
 import {
   TIME_OF_DAY,
   getAllLibraryRows,
@@ -119,9 +120,17 @@ export default function TemplateLibraryPage() {
             여기서의 변경은 이 브라우저에만 저장되고, 실제 배포에는 반영되지 않아요.
           </p>
         </div>
-        <Link href="/admin/templates" className="shrink-0 rounded border border-ink px-3 py-2 text-xs font-medium">
-          ← 업로드로
-        </Link>
+        <div className="flex shrink-0 items-center gap-2">
+          <Link href="/admin/templates" className="rounded border border-ink px-3 py-2 text-xs font-medium">
+            ← 업로드로
+          </Link>
+          <button
+            onClick={() => logout()}
+            className="rounded border border-hairline px-3 py-2 text-xs font-medium text-muted"
+          >
+            로그아웃
+          </button>
+        </div>
       </div>
 
       <div className="rounded border border-hairline">

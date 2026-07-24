@@ -178,7 +178,11 @@ export default function MakePage() {
       setStep("result");
     } catch (err) {
       console.error(err);
-      setError("포스터를 만드는 중 문제가 생겼어요. 다시 시도해주세요.");
+      // Real device bugs are otherwise unreachable to debug (no console
+      // access on a phone) — surfacing the actual message here is worth the
+      // slightly less polished error text.
+      const detail = err instanceof Error ? err.message : String(err);
+      setError(`포스터를 만드는 중 문제가 생겼어요. 다시 시도해주세요. (${detail})`);
       setStep("form");
     }
   };

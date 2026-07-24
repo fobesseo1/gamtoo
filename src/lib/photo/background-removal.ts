@@ -18,7 +18,14 @@ interface RemoveBackgroundOptions {
   model?: BgRemovalModel;
 }
 
-const DEFAULT_TIMEOUT_MS = 30000;
+// A cold start (model never downloaded/initialized in this tab yet) can
+// genuinely take longer than 30s on a slow connection — timing out then
+// silently falls back to the original photo with no visible error, but the
+// worker keeps loading the model in the background regardless, so the very
+// next attempt in the same tab finds it already warm and succeeds. That
+// read as "the first photo never works, has to be redone" — the real fix is
+// giving the cold-start case enough runway to finish within one attempt.
+const DEFAULT_TIMEOUT_MS = 90000;
 
 // isnet_quint8 (8-bit) measured ~30% faster than isnet_fp16, but the
 // quantization visibly roughened cutout edges on a real photo — not worth

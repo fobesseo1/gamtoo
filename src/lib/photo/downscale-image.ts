@@ -1,3 +1,5 @@
+import { sniffImageDimensions } from "./sniff-image-dimensions";
+
 export interface DownscaleImageOptions {
   /** Longest side is capped to this many pixels. Never upscales. */
   maxDimension?: number;
@@ -15,26 +17,21 @@ const DEFAULT_MAX_DIMENSION = 1600;
 const DEFAULT_QUALITY = 0.85;
 const DEFAULT_MIME_TYPE = "image/jpeg";
 
-/** Decodes via an <img> element rather than createImageBitmap() — real phone
- * photos from high-megapixel sensors (108MP Samsung flagships, etc.) hit
- * "the source image could not be decoded" from createImageBitmap on stock
- * Chrome/Brave mobile (Samsung Internet tolerates the same file fine), while
- * the <img> decode path handles the same oversized originals without issue. */
-function loadImageElement(source: Blob): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(source);
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error("image-decode-failed"));
-    img.src = url;
-  });
-}
-
 /**
  * Shrinks an uploaded photo to a poster-appropriate resolution before it's
  * fed to background removal or stored. Modern phone photos (4000px+, several
  * MB) add decode/processing time and storage cost far beyond what a poster
  * canvas (~1080px) ever needs, without any visible quality gain.
+ *
+ * Real high-megapixel phone photos (50-100+ MP) can fail to decode at all on
+ * mobile — "the source image could not be decoded" — because decoding at
+ * full resolution needs a huge pixel buffer (100MP × 4 bytes ≈ 400MB) that a
+ * phone won't allocate; this isn't a specific-browser quirk, every mobile
+ * browser tested hit the same wall past some size. So this decodes straight
+ * to the target size via createImageBitmap's resize options (which can use
+ * the codec's own scaled decode instead of decoding full-res first) whenever
+ * the file's real dimensions can be read cheaply from its header — the
+ * multi-hundred-MB buffer is never allocated in the first place.
  */
 export async function downscaleImage(
   source: Blob,
@@ -46,24 +43,34 @@ export async function downscaleImage(
     mimeType = DEFAULT_MIME_TYPE,
   } = options;
 
-  const img = await loadImageElement(source);
-  try {
-    const scale = Math.min(1, maxDimension / Math.max(img.naturalWidth, img.naturalHeight));
-    const width = Math.round(img.naturalWidth * scale);
-    const height = Math.round(img.naturalHeight * scale);
+  const dims = await sniffImageDimensions(source);
 
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(img, 0, 0, width, height);
-
-    const blob = await new Promise<Blob>((resolve) =>
-      canvas.toBlob((result) => resolve(result!), mimeType, quality),
-    );
-
-    return { blob, width, height };
-  } finally {
-    URL.revokeObjectURL(img.src);
+  let bitmap: ImageBitmap;
+  if (dims) {
+    const scale = Math.min(1, maxDimension / Math.max(dims.width, dims.height));
+    bitmap = await createImageBitmap(source, {
+      resizeWidth: Math.max(1, Math.round(dims.width * scale)),
+      resizeHeight: Math.max(1, Math.round(dims.height * scale)),
+      resizeQuality: "medium",
+    });
+  } else {
+    // Unknown format (not JPEG/PNG) — fall back to a plain full decode.
+    bitmap = await createImageBitmap(source);
   }
+
+  const width = bitmap.width;
+  const height = bitmap.height;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d")!;
+  ctx.drawImage(bitmap, 0, 0, width, height);
+  bitmap.close();
+
+  const blob = await new Promise<Blob>((resolve) =>
+    canvas.toBlob((result) => resolve(result!), mimeType, quality),
+  );
+
+  return { blob, width, height };
 }

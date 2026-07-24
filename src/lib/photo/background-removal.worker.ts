@@ -14,10 +14,11 @@
  */
 
 export type BgRemovalModel = "isnet" | "isnet_fp16" | "isnet_quint8";
+export type BgRemovalDevice = "cpu" | "gpu";
 
 export type WorkerRequest =
-  | { id: number; type: "remove"; blob: Blob; model?: BgRemovalModel }
-  | { id: number; type: "preload"; model?: BgRemovalModel };
+  | { id: number; type: "remove"; blob: Blob; model?: BgRemovalModel; device?: BgRemovalDevice }
+  | { id: number; type: "preload"; model?: BgRemovalModel; device?: BgRemovalDevice };
 
 export type WorkerResponse =
   | { id: number; type: "remove"; status: "done"; blob: Blob }
@@ -28,14 +29,19 @@ addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
   const request = event.data;
   try {
     const { removeBackground, preload } = await import("@imgly/background-removal");
+    // "gpu" only actually engages WebGPU if the library's own feature
+    // detection (navigator.gpu.requestAdapter()) succeeds — otherwise it
+    // silently uses the wasm path, same as "cpu" ever did. No fallback
+    // logic needed on our end.
+    const config = { model: request.model, device: request.device };
     if (request.type === "preload") {
-      await preload(request.model ? { model: request.model } : undefined);
+      await preload(config);
       const response: WorkerResponse = { id: request.id, type: "preload", status: "done" };
       postMessage(response);
       return;
     }
 
-    const blob = await removeBackground(request.blob, request.model ? { model: request.model } : undefined);
+    const blob = await removeBackground(request.blob, config);
     const response: WorkerResponse = { id: request.id, type: "remove", status: "done", blob };
     postMessage(response);
   } catch (error) {

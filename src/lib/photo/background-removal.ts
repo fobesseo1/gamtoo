@@ -1,6 +1,6 @@
-import type { BgRemovalModel, WorkerRequest, WorkerResponse } from "./background-removal.worker";
+import type { BgRemovalDevice, BgRemovalModel, WorkerRequest, WorkerResponse } from "./background-removal.worker";
 
-export type { BgRemovalModel };
+export type { BgRemovalModel, BgRemovalDevice };
 
 // Plain `Omit` on a union type doesn't distribute — it collapses the union
 // into a single merged object type first, which drops the "remove" branch's
@@ -16,6 +16,7 @@ export interface RemoveBackgroundResult {
 interface RemoveBackgroundOptions {
   timeoutMs?: number;
   model?: BgRemovalModel;
+  device?: BgRemovalDevice;
 }
 
 // A cold start (model never downloaded/initialized in this tab yet) can
@@ -36,6 +37,14 @@ const DEFAULT_TIMEOUT_MS = 90000;
 // memoizes its model init by config, so a mismatch here would silently
 // throw away the preload's benefit.
 export const DEFAULT_BG_REMOVAL_MODEL: BgRemovalModel = "isnet_fp16";
+
+// NOT "gpu" — tested it directly: real-world timing dropped to ~400ms (from
+// ~7-9s on threaded CPU), which sounded great until the actual output image
+// turned out to be fully transparent — the subject removed along with the
+// background instead of just the background. A fast, silently-wrong result
+// is worse than a slow, correct one, so this stays on the verified-correct
+// CPU path unless/until the library's WebGPU path is confirmed reliable.
+export const DEFAULT_BG_REMOVAL_DEVICE: BgRemovalDevice = "cpu";
 
 type PendingEntry = { resolve: (value: WorkerResponse) => void; reject: (error: Error) => void };
 
@@ -112,10 +121,14 @@ export async function removeBackgroundWithFallback(
   source: Blob,
   options: RemoveBackgroundOptions = {},
 ): Promise<RemoveBackgroundResult> {
-  const { timeoutMs = DEFAULT_TIMEOUT_MS, model = DEFAULT_BG_REMOVAL_MODEL } = options;
+  const {
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    model = DEFAULT_BG_REMOVAL_MODEL,
+    device = DEFAULT_BG_REMOVAL_DEVICE,
+  } = options;
 
   try {
-    const response = await send({ type: "remove", blob: source, model }, timeoutMs);
+    const response = await send({ type: "remove", blob: source, model, device }, timeoutMs);
     if (response.status === "error") throw new Error(response.message);
     if (response.type !== "remove") throw new Error("unexpected-worker-response");
     return { blob: response.blob, usedFallback: false };
@@ -132,8 +145,11 @@ export async function removeBackgroundWithFallback(
  * removeBackgroundWithFallback actually needs it. Fire-and-forget: on
  * failure the real run just pays the init cost itself later, same as today.
  */
-export function preloadBackgroundRemovalModel(model: BgRemovalModel = DEFAULT_BG_REMOVAL_MODEL): void {
-  send({ type: "preload", model }).catch((error) => {
+export function preloadBackgroundRemovalModel(
+  model: BgRemovalModel = DEFAULT_BG_REMOVAL_MODEL,
+  device: BgRemovalDevice = DEFAULT_BG_REMOVAL_DEVICE,
+): void {
+  send({ type: "preload", model, device }).catch((error) => {
     console.warn("[background-removal] preload failed:", error);
   });
 }

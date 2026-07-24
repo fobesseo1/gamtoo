@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useBackgroundRemoval } from "@/lib/photo/use-background-removal";
 import { downscaleImage } from "@/lib/photo/downscale-image";
+import { isHeicImage, convertHeicToJpeg } from "@/lib/photo/heic";
 import { detectLocationLabel } from "@/lib/geolocation";
 import { textWeight, truncateToWeight } from "@/lib/text-length";
 import { pickRandomTemplate, getCurrentTimeOfDay } from "@/lib/templates";
@@ -109,7 +110,14 @@ export default function MakePage() {
     // onto the File across however long the user spends on the rest of the
     // form, sidesteps it entirely.
     const buffer = await file.arrayBuffer();
-    const blob = new Blob([buffer], { type: file.type });
+    let blob: Blob = new Blob([buffer], { type: file.type });
+
+    // iPhones save photos as HEIC by default (since iOS 11) — no browser
+    // except Safari can decode it natively, so it's converted to JPEG here,
+    // once, before anything else touches it.
+    if (await isHeicImage(blob)) {
+      blob = await convertHeicToJpeg(blob);
+    }
 
     setPhotoFile(blob);
     setPhotoPreviewUrl(URL.createObjectURL(blob));

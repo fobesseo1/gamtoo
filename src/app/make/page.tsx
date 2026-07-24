@@ -54,6 +54,10 @@ export default function MakePage() {
   const [step, setStep] = useState<Step>("form");
   const [photoFile, setPhotoFile] = useState<Blob | null>(null);
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
+  // True while a just-picked photo is being read/HEIC-converted, before the
+  // preview can show anything — HEIC conversion alone can take a few
+  // seconds, which read as a frozen "+ 사진 추가" button with no feedback.
+  const [photoLoading, setPhotoLoading] = useState(false);
   const [userText, setUserText] = useState("");
   const [location, setLocation] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -106,34 +110,41 @@ export default function MakePage() {
       return;
     }
 
-    // Android Chrome/Brave can invalidate a picked File's underlying content
-    // reference after enough time passes before it's read (throws "The
-    // requested file could not be read... permission problems... after a
-    // reference to a file was acquired" — real device bug, not ours) —
-    // reading its bytes into a plain Blob right away, instead of holding
-    // onto the File across however long the user spends on the rest of the
-    // form, sidesteps it entirely.
-    const buffer = await file.arrayBuffer();
-    let blob: Blob = new Blob([buffer], { type: file.type });
+    setPhotoLoading(true);
+    try {
+      // Android Chrome/Brave can invalidate a picked File's underlying content
+      // reference after enough time passes before it's read (throws "The
+      // requested file could not be read... permission problems... after a
+      // reference to a file was acquired" — real device bug, not ours) —
+      // reading its bytes into a plain Blob right away, instead of holding
+      // onto the File across however long the user spends on the rest of the
+      // form, sidesteps it entirely.
+      const buffer = await file.arrayBuffer();
+      let blob: Blob = new Blob([buffer], { type: file.type });
 
-    // iPhones save photos as HEIC by default (since iOS 11) — no browser
-    // except Safari can decode it natively, so it's converted to JPEG here,
-    // once, before anything else touches it.
-    if (await isHeicImage(blob)) {
-      blob = await convertHeicToJpeg(blob);
+      // iPhones save photos as HEIC by default (since iOS 11) — no browser
+      // except Safari can decode it natively, so it's converted to JPEG here,
+      // once, before anything else touches it. This is the slow step (a
+      // few seconds) that photoLoading covers.
+      if (await isHeicImage(blob)) {
+        blob = await convertHeicToJpeg(blob);
+      }
+
+      setPhotoFile(blob);
+      setPhotoPreviewUrl(URL.createObjectURL(blob));
+
+      // Only worth starting the real removal early if the template we'll
+      // actually use it on ("photo") expects a cutout at all — a
+      // "photo-noremovebg" pick never touches background removal, so there's
+      // nothing to warm up for it. If they swap photos before submitting,
+      // handleSubmit's call below reuses this by identity when it's the same
+      // Blob, or starts a fresh run that queues behind this one otherwise (the
+      // shared worker can't cancel an in-flight run — see
+      // background-removal.ts — so a swap just costs a wait, not a redo).
+      if (preselectedTemplate?.category === "photo") void removeBackground(blob);
+    } finally {
+      setPhotoLoading(false);
     }
-
-    setPhotoFile(blob);
-    setPhotoPreviewUrl(URL.createObjectURL(blob));
-    // Only worth starting the real removal early if the template we'll
-    // actually use it on ("photo") expects a cutout at all — a
-    // "photo-noremovebg" pick never touches background removal, so there's
-    // nothing to warm up for it. If they swap photos before submitting,
-    // handleSubmit's call below reuses this by identity when it's the same
-    // Blob, or starts a fresh run that queues behind this one otherwise (the
-    // shared worker can't cancel an in-flight run — see
-    // background-removal.ts — so a swap just costs a wait, not a redo).
-    if (preselectedTemplate?.category === "photo") void removeBackground(blob);
   };
 
   const handleRemovePhoto = () => {
@@ -440,7 +451,12 @@ export default function MakePage() {
 
         <div>
           <label className="mb-2 block text-[14px] font-medium text-ink">사진 (선택)</label>
-          {photoPreviewUrl ? (
+          {photoLoading ? (
+            <div className="flex h-32 w-32 flex-col items-center justify-center gap-2 rounded-md border border-dashed border-border-strong text-center text-[13px] text-muted">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-hairline border-t-ink" />
+              불러오는 중...
+            </div>
+          ) : photoPreviewUrl ? (
             <div className="relative w-40">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={photoPreviewUrl} alt="선택한 사진" className="w-40 rounded-md object-cover" />

@@ -1,0 +1,49 @@
+/**
+ * Runs @imgly/background-removal's WASM inference off the main thread.
+ * That inference is single-threaded and runs synchronously for most of its
+ * duration once it starts — on the main thread, that blocks EVERYTHING else
+ * (React state updates, CSS animations, all of it; verified directly: a
+ * plain busy-loop froze every kind of progress indicator we tried). Moving
+ * it here keeps the main thread free the whole time.
+ *
+ * Deliberately avoids `self`/`DedicatedWorkerGlobalScope` typing — mixing
+ * the "webworker" and "dom" TS libs in one project causes global type
+ * conflicts. `addEventListener`/`postMessage`/`MessageEvent` are declared
+ * in the default "dom" lib too (window-to-window messaging), so this
+ * type-checks fine without it.
+ */
+
+export type BgRemovalModel = "isnet" | "isnet_fp16" | "isnet_quint8";
+
+export type WorkerRequest =
+  | { id: number; type: "remove"; blob: Blob; model?: BgRemovalModel }
+  | { id: number; type: "preload"; model?: BgRemovalModel };
+
+export type WorkerResponse =
+  | { id: number; type: "remove"; status: "done"; blob: Blob }
+  | { id: number; type: "preload"; status: "done" }
+  | { id: number; status: "error"; message: string };
+
+addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
+  const request = event.data;
+  try {
+    const { removeBackground, preload } = await import("@imgly/background-removal");
+    if (request.type === "preload") {
+      await preload(request.model ? { model: request.model } : undefined);
+      const response: WorkerResponse = { id: request.id, type: "preload", status: "done" };
+      postMessage(response);
+      return;
+    }
+
+    const blob = await removeBackground(request.blob, request.model ? { model: request.model } : undefined);
+    const response: WorkerResponse = { id: request.id, type: "remove", status: "done", blob };
+    postMessage(response);
+  } catch (error) {
+    const response: WorkerResponse = {
+      id: request.id,
+      status: "error",
+      message: error instanceof Error ? error.message : String(error),
+    };
+    postMessage(response);
+  }
+});

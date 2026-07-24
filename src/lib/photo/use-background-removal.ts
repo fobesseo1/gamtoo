@@ -12,6 +12,7 @@ interface BackgroundRemovalState {
   progress: number;
   resultBlob: Blob | null;
   usedFallback: boolean;
+  fallbackReason?: string;
 }
 
 const INITIAL_STATE: BackgroundRemovalState = {
@@ -76,7 +77,7 @@ export function useBackgroundRemoval() {
         // Only crop when the background was actually removed — a fallback blob
         // is still the original opaque photo, so there's no transparent margin to trim.
         const finalBlob = result.usedFallback ? result.blob : (await cropToContent(result.blob)).blob;
-        const finalResult = { blob: finalBlob, usedFallback: result.usedFallback };
+        const finalResult = { blob: finalBlob, usedFallback: result.usedFallback, fallbackReason: result.fallbackReason };
 
         // A photo that's since been swapped out can't be cancelled (the
         // worker has no abort — see background-removal.ts) so it keeps
@@ -84,7 +85,13 @@ export function useBackgroundRemoval() {
         // resolves, it should just quietly finish instead of stomping
         // whatever the newer photo's run has already reported.
         if (runningFor.current === source) {
-          setState({ status: "done", progress: 100, resultBlob: finalResult.blob, usedFallback: finalResult.usedFallback });
+          setState({
+            status: "done",
+            progress: 100,
+            resultBlob: finalResult.blob,
+            usedFallback: finalResult.usedFallback,
+            fallbackReason: finalResult.fallbackReason,
+          });
         }
         return finalResult;
       } finally {

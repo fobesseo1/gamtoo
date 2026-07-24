@@ -11,6 +11,9 @@ type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K>
 export interface RemoveBackgroundResult {
   blob: Blob;
   usedFallback: boolean;
+  /** Why it fell back, when it did — real device failures are otherwise
+   * unreachable to debug (no console access on a phone). */
+  fallbackReason?: string;
 }
 
 interface RemoveBackgroundOptions {
@@ -133,8 +136,9 @@ export async function removeBackgroundWithFallback(
     if (response.type !== "remove") throw new Error("unexpected-worker-response");
     return { blob: response.blob, usedFallback: false };
   } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
     console.warn("[background-removal] falling back to original photo:", error);
-    return { blob: source, usedFallback: true };
+    return { blob: source, usedFallback: true, fallbackReason: reason };
   }
 }
 

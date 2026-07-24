@@ -71,6 +71,10 @@ export default function MakePage() {
   const [bgRemoved, setBgRemoved] = useState(false);
   const [bgProcessing, setBgProcessing] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  // Real device failures are otherwise unreachable to debug (no console
+  // access on a phone) — shown as a small note, not a blocking error, since
+  // the poster still completes fine with the original photo either way.
+  const [bgFallbackReason, setBgFallbackReason] = useState<string | null>(null);
 
   useEffect(() => {
     pickPhotoTemplate().then(setPreselectedTemplate);
@@ -140,6 +144,7 @@ export default function MakePage() {
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setError(null);
+    setBgFallbackReason(null);
     setStep("processing");
 
     try {
@@ -178,6 +183,9 @@ export default function MakePage() {
       if (photoFile && picked.category === "photo") {
         try {
           const removed = await removeBackground(photoFile);
+          if (removed.usedFallback) {
+            setBgFallbackReason(removed.fallbackReason ?? "알 수 없는 이유");
+          }
           const cutoutBlob = await renderPoster(picked, {
             userPhoto: removed.blob,
             userText: userText.trim() || DEFAULT_CAPTION,
@@ -283,6 +291,7 @@ export default function MakePage() {
     setCutoutPoster(null);
     setBgRemoved(false);
     setSaveStatus("idle");
+    setBgFallbackReason(null);
     pickPhotoTemplate().then(setPreselectedTemplate);
   };
 
@@ -345,6 +354,11 @@ export default function MakePage() {
         )}
 
         {error && <p className="text-[14px] text-error">{error}</p>}
+        {bgFallbackReason && (
+          <p className="text-[13px] text-muted">
+            배경 제거가 원본으로 대체됐어요 ({bgFallbackReason})
+          </p>
+        )}
 
         {saveStatus === "saved" ? (
           <>

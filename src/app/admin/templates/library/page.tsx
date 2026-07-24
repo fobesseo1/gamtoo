@@ -6,13 +6,15 @@ import { logout } from "@/app/admin/login/actions";
 import {
   TIME_OF_DAY,
   getAllLibraryRows,
-  deleteLibraryTemplate,
-  setLibraryTemplateEnabled,
-  updateLibraryTemplateWeight,
   type LibraryRow,
   type TimeOfDay,
   type PosterTemplate,
 } from "@/lib/templates";
+import {
+  deleteLibraryTemplate,
+  setLibraryTemplateEnabled,
+  updateLibraryTemplateWeight,
+} from "@/lib/templates/library-actions";
 import { renderPoster, createSamplePhotoBlob } from "@/lib/render";
 
 const WEIGHT_PRESETS = [
@@ -44,9 +46,8 @@ async function renderThumbnail(template: PosterTemplate): Promise<string> {
 }
 
 export default function TemplateLibraryPage() {
-  // localStorage isn't available during server rendering, so the initial
-  // list is populated client-side after mount to avoid a hydration mismatch
-  // between server-rendered (no overrides) and client (real) enabled state.
+  // Fetched from Supabase client-side (rather than during server rendering)
+  // so a stale/cached server render never shows outdated enabled state.
   const [rows, setRows] = useState<LibraryRow[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftWeight, setDraftWeight] = useState(1);
@@ -54,7 +55,7 @@ export default function TemplateLibraryPage() {
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
 
-  const refresh = () => setRows(getAllLibraryRows());
+  const refresh = async () => setRows(await getAllLibraryRows());
 
   useEffect(() => {
     refresh();
@@ -82,14 +83,14 @@ export default function TemplateLibraryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, currentPage]);
 
-  const handleToggleEnabled = (row: LibraryRow) => {
-    setLibraryTemplateEnabled(row.template.id, row.source, !row.enabled);
-    refresh();
+  const handleToggleEnabled = async (row: LibraryRow) => {
+    await setLibraryTemplateEnabled(row.template.id, row.source, !row.enabled);
+    await refresh();
   };
 
-  const handleDelete = (row: LibraryRow) => {
-    deleteLibraryTemplate(row.template.id, row.source);
-    refresh();
+  const handleDelete = async (row: LibraryRow) => {
+    await deleteLibraryTemplate(row.template.id, row.source);
+    await refresh();
   };
 
   const startEditing = (row: LibraryRow) => {
@@ -100,10 +101,10 @@ export default function TemplateLibraryPage() {
 
   const cancelEditing = () => setEditingId(null);
 
-  const saveEditing = (row: LibraryRow) => {
-    updateLibraryTemplateWeight(row.template.id, row.source, draftWeight, draftTimes);
+  const saveEditing = async (row: LibraryRow) => {
+    await updateLibraryTemplateWeight(row.template.id, row.source, draftWeight, draftTimes);
     setEditingId(null);
-    refresh();
+    await refresh();
   };
 
   const toggleDraftTime = (t: TimeOfDay) => {

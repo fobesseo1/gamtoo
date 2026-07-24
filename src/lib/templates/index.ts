@@ -9,21 +9,8 @@ export {
   pickRandomTemplate,
 } from "./queries";
 export {
-  addTemplateToLibrary,
-  removeAddedTemplate,
-  setAddedTemplateEnabled,
-  updateAddedTemplateWeight,
-  getAddedTemplateEntries,
-  getBuiltinOverrides,
-  setBuiltinEnabled,
-  updateBuiltinWeight,
   getEffectiveTemplates,
   getAllLibraryRows,
-  deleteLibraryTemplate,
-  setLibraryTemplateEnabled,
-  updateLibraryTemplateWeight,
-  getLibraryCountByCategory,
-  type LibraryEntry,
   type LibraryRow,
-  type BuiltinOverride,
+  type TemplateEntryRow,
 } from "./local-library";

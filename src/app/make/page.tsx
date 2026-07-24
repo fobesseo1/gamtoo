@@ -45,7 +45,7 @@ const DEFAULT_LOCATION = "Seoul, Myeong-dong";
  * expects a cutout ("photo") or the original with its background
  * ("photo-noremovebg") — and can decide right then whether to start
  * background removal at all, instead of finding out only at submit time. */
-function pickPhotoTemplate(): PosterTemplate {
+async function pickPhotoTemplate(): Promise<PosterTemplate> {
   return pickRandomTemplate(["photo", "photo-noremovebg"], { timeOfDay: getCurrentTimeOfDay() });
 }
 
@@ -59,9 +59,9 @@ export default function MakePage() {
   const [dipActive, setDipActive] = useState(false);
 
   // Tentatively picked the moment this page loads, assuming a photo is
-  // likely — re-picking a template is essentially free (no network, no
-  // heavy work), so guessing wrong just means picking again from
-  // "graphic-only" at submit time instead (see handleSubmit).
+  // likely — re-picking a template is a small Supabase read, not heavy
+  // work, so guessing wrong just means picking again from "graphic-only"
+  // at submit time instead (see handleSubmit).
   const [preselectedTemplate, setPreselectedTemplate] = useState<PosterTemplate | null>(null);
 
   const [template, setTemplate] = useState<PosterTemplate | null>(null);
@@ -72,7 +72,7 @@ export default function MakePage() {
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
 
   useEffect(() => {
-    setPreselectedTemplate(pickPhotoTemplate());
+    pickPhotoTemplate().then(setPreselectedTemplate);
   }, []);
 
   // Best-effort default for the location field — silently does nothing
@@ -126,7 +126,9 @@ export default function MakePage() {
       // same template) — text-only submissions never had a valid pick for
       // them (the preselect only ever draws from the photo pools), so those
       // pick fresh from "graphic-only" right here instead.
-      const picked = photoFile ? preselectedTemplate ?? pickPhotoTemplate() : pickRandomTemplate("graphic-only", { timeOfDay: getCurrentTimeOfDay() });
+      const picked = photoFile
+        ? (preselectedTemplate ?? (await pickPhotoTemplate()))
+        : await pickRandomTemplate("graphic-only", { timeOfDay: getCurrentTimeOfDay() });
 
       if (photoFile) {
         userPhoto = (await downscaleImage(photoFile)).blob;
@@ -253,7 +255,7 @@ export default function MakePage() {
     setCutoutPoster(null);
     setBgRemoved(false);
     setSaveStatus("idle");
-    setPreselectedTemplate(pickPhotoTemplate());
+    pickPhotoTemplate().then(setPreselectedTemplate);
   };
 
   const handleDownload = () => {

@@ -36,10 +36,10 @@ export default function RenderDevPage() {
     };
 
     setStatusMessage("템플릿 렌더링 중...");
-    const templates = getAllTemplates();
+    const templates = await getAllTemplates();
     const results: RenderedPoster[] = [];
     for (const template of templates) {
-      const userPhoto = template.category === "photo" ? original : undefined;
+      const userPhoto = template.category !== "graphic-only" ? original : undefined;
       const blob = await renderPoster(template, { ...data, userPhoto });
       results.push({
         id: template.id,
@@ -60,7 +60,8 @@ export default function RenderDevPage() {
     setStatusMessage("그래픽 전용 템플릿 렌더링 중...");
 
     const data = { userText, location, date: new Date() };
-    const templates = getAllTemplates().filter((t) => t.category === "graphic-only");
+    const allTemplates = await getAllTemplates();
+    const templates = allTemplates.filter((t) => t.category === "graphic-only");
     const results: RenderedPoster[] = [];
     for (const template of templates) {
       const blob = await renderPoster(template, data);

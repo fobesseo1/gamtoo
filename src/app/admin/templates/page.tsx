@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { logout } from "@/app/admin/login/actions";
 import { parseSvgTemplate, type ParseSvgTemplateResult } from "@/lib/template-authoring";
@@ -9,10 +9,10 @@ import {
   TEMPLATE_CATEGORIES,
   TIME_OF_DAY,
   getTemplatesByCategory,
-  addTemplateToLibrary,
   type TemplateCategory,
   type TimeOfDay,
 } from "@/lib/templates";
+import { addTemplateToLibrary } from "@/lib/templates/library-actions";
 import type { PosterTemplate } from "@/lib/templates";
 
 const WEIGHT_PRESETS = [
@@ -42,11 +42,19 @@ export default function AdminTemplatesPage() {
   const [category, setCategory] = useState<TemplateCategory>("photo");
   const [weight, setWeight] = useState(1);
   const [selectedTimes, setSelectedTimes] = useState<TimeOfDay[]>([]);
+  const [existingWeightSum, setExistingWeightSum] = useState(0);
 
-  const existingWeightSum = getTemplatesByCategory(category).reduce(
-    (sum, t) => sum + (t.weightConditions?.weight ?? 1),
-    0,
-  );
+  useEffect(() => {
+    let cancelled = false;
+    getTemplatesByCategory(category).then((templates) => {
+      if (cancelled) return;
+      setExistingWeightSum(templates.reduce((sum, t) => sum + (t.weightConditions?.weight ?? 1), 0));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [category]);
+
   const estimatedPercent = Math.round((weight / (existingWeightSum + weight)) * 100);
 
   const buildTemplate = (): PosterTemplate | null => {
@@ -131,10 +139,10 @@ export default function AdminTemplatesPage() {
     );
   };
 
-  const handleAddToLibrary = () => {
+  const handleAddToLibrary = async () => {
     const template = buildTemplate();
     if (!template) return;
-    addTemplateToLibrary(template);
+    await addTemplateToLibrary(template);
     setAddedToLibrary(true);
   };
 

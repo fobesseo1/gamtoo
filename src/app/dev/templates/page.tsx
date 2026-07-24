@@ -2,8 +2,8 @@ import Image from "next/image";
 import { getAllTemplates } from "@/lib/templates";
 import { getCharacterAssetPath } from "@/lib/characters/registry";
 
-export default function DevTemplatesPage() {
-  const templates = getAllTemplates();
+export default async function DevTemplatesPage() {
+  const templates = await getAllTemplates();
 
   return (
     <main className="flex flex-1 flex-col gap-8 px-6 py-10">

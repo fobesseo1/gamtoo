@@ -5,16 +5,18 @@ import type { PosterTemplate } from "./types";
 /** Templates whose time-of-day preference doesn't match are not excluded, only de-prioritized. */
 const OFF_TIME_WEIGHT_MULTIPLIER = 0.3;
 
-export function getAllTemplates(): PosterTemplate[] {
+export async function getAllTemplates(): Promise<PosterTemplate[]> {
   return getEffectiveTemplates();
 }
 
-export function getTemplatesByCategory(category: TemplateCategory): PosterTemplate[] {
-  return getEffectiveTemplates().filter((template) => template.category === category);
+export async function getTemplatesByCategory(category: TemplateCategory): Promise<PosterTemplate[]> {
+  const templates = await getEffectiveTemplates();
+  return templates.filter((template) => template.category === category);
 }
 
-export function getTemplateById(id: string): PosterTemplate | undefined {
-  return getEffectiveTemplates().find((template) => template.id === id);
+export async function getTemplateById(id: string): Promise<PosterTemplate | undefined> {
+  const templates = await getEffectiveTemplates();
+  return templates.find((template) => template.id === id);
 }
 
 export function getCurrentTimeOfDay(date: Date = new Date()): TimeOfDay {
@@ -25,12 +27,13 @@ export function getCurrentTimeOfDay(date: Date = new Date()): TimeOfDay {
   return "night";
 }
 
-export function pickRandomTemplate(
+export async function pickRandomTemplate(
   category: TemplateCategory | TemplateCategory[],
   options?: { timeOfDay?: TimeOfDay },
-): PosterTemplate {
+): Promise<PosterTemplate> {
   const categories = Array.isArray(category) ? category : [category];
-  const candidates = getEffectiveTemplates().filter((template) => categories.includes(template.category));
+  const allTemplates = await getEffectiveTemplates();
+  const candidates = allTemplates.filter((template) => categories.includes(template.category));
   if (candidates.length === 0) {
     throw new Error(`No templates registered for category: ${categories.join(", ")}`);
   }

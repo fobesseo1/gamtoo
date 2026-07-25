@@ -16,7 +16,7 @@ export function RetryingNotice({ onCancel }: RetryingNoticeProps) {
         onClick={onCancel}
         className="mt-1 h-9 rounded-sm border border-hairline px-4 text-[13px] font-medium text-body"
       >
-        취소
+        원본 사진 그대로 쓰기
       </button>
     </div>
   );

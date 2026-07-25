@@ -14,6 +14,7 @@
  */
 
 import { sniffImageDimensions } from "./sniff-image-dimensions";
+import { FilesetResolver, ImageSegmenter } from "@mediapipe/tasks-vision";
 
 export type BgRemovalModel = "isnet" | "isnet_fp16" | "isnet_quint8";
 export type BgRemovalDevice = "cpu" | "gpu";
@@ -48,6 +49,69 @@ async function shrinkForBgRemoval(source: Blob): Promise<Blob> {
   bitmap.close();
 
   return canvas.convertToBlob({ type: "image/png" });
+}
+
+// Mobile-only path: MediaPipe's selfie segmenter is a much smaller/faster
+// model than imgly's isnet family, and its "GPU" delegate is WebGL-based
+// (not WebGPU), which is what actually works reliably on mobile GPUs --
+// unlike imgly's WebGPU path, which came back fully transparent on a real
+// mobile device (see background-removal.ts). Created lazily and cached: the
+// model download + WebGL setup only needs to happen once per worker
+// lifetime, same reasoning as imgly's own internal memoization.
+let segmenterPromise: Promise<ImageSegmenter> | null = null;
+
+function getSegmenter(): Promise<ImageSegmenter> {
+  if (!segmenterPromise) {
+    segmenterPromise = (async () => {
+      const vision = await FilesetResolver.forVisionTasks(`${self.location.origin}/mediapipe/wasm`);
+      return ImageSegmenter.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: `${self.location.origin}/mediapipe/selfie_segmenter.tflite`,
+          delegate: "GPU",
+        },
+        outputCategoryMask: false,
+        outputConfidenceMasks: true,
+      });
+    })();
+  }
+  return segmenterPromise;
+}
+
+// Runs selfie segmentation and applies the resulting per-pixel confidence
+// mask as the output image's alpha channel, so the result is a transparent
+// PNG/WebP in the same shape as imgly's removeBackground() output -- callers
+// downstream (cropToContent, poster compositing) don't need to know which
+// engine produced it.
+async function removeBackgroundMediaPipe(source: Blob): Promise<Blob> {
+  const segmenter = await getSegmenter();
+  const bitmap = await createImageBitmap(source);
+
+  const result = segmenter.segment(bitmap);
+  const mask = result.confidenceMasks?.[0];
+  if (!mask) {
+    result.close();
+    bitmap.close();
+    throw new Error("mediapipe-no-confidence-mask");
+  }
+
+  const maskData = mask.getAsFloat32Array();
+  const width = mask.width;
+  const height = mask.height;
+
+  const canvas = new OffscreenCanvas(width, height);
+  const ctx = canvas.getContext("2d")!;
+  ctx.drawImage(bitmap, 0, 0, width, height);
+  bitmap.close();
+
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const pixels = imageData.data;
+  for (let i = 0; i < width * height; i++) {
+    pixels[i * 4 + 3] = Math.max(0, Math.min(255, Math.round(pixels[i * 4 + 3] * maskData[i])));
+  }
+  ctx.putImageData(imageData, 0, 0);
+  result.close();
+
+  return canvas.convertToBlob({ type: "image/webp", quality: 0.92 });
 }
 
 export type WorkerRequest =
@@ -85,7 +149,21 @@ addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
     const shrunk = await shrinkForBgRemoval(request.blob);
 
     const start = performance.now();
-    const blob = await removeBackground(shrunk, config);
+    let blob: Blob;
+    if (request.device === "gpu") {
+      // Desktop path: imgly + WebGPU + isnet. Untouched by the mobile work below.
+      blob = await removeBackground(shrunk, config);
+    } else {
+      // Mobile path: try MediaPipe first, fall back to the existing imgly
+      // cpu path (same `config` the old mobile-only path already used) on
+      // any failure -- unsupported delegate, missing WebGL2, etc.
+      try {
+        blob = await removeBackgroundMediaPipe(shrunk);
+      } catch (mediapipeError) {
+        console.warn("[background-removal] MediaPipe failed, falling back to imgly cpu:", mediapipeError);
+        blob = await removeBackground(shrunk, config);
+      }
+    }
     const elapsedMs = performance.now() - start;
 
     const response: WorkerResponse = { id: request.id, type: "remove", status: "done", blob, elapsedMs };

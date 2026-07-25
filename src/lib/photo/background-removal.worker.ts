@@ -68,7 +68,7 @@ addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
     // silently uses the wasm path, same as "cpu" ever did. No fallback
     // logic needed on our end.
     const config = {
-      model: request.model,
+      model: "isnet" as const,
       device: "gpu" as const,
       publicPath: `${self.location.origin}/bgr/`,
       debug: true,

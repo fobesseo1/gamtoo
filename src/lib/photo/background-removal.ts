@@ -31,23 +31,30 @@ interface RemoveBackgroundOptions {
 // giving the cold-start case enough runway to finish within one attempt.
 const DEFAULT_TIMEOUT_MS = 90000;
 
-// isnet_quint8 (8-bit) measured ~30% faster than isnet_fp16, but the
-// quantization visibly roughened cutout edges on a real photo — not worth
-// the tradeoff, so back to fp16. Kept as an explicit constant (rather than
-// just omitting `model` and letting the library fall back to its own
-// default) so preload (fired on photo pick) and the real removal call
-// (fired on submit) always warm and use the *same* config — the library
-// memoizes its model init by config, so a mismatch here would silently
-// throw away the preload's benefit.
-export const DEFAULT_BG_REMOVAL_MODEL: BgRemovalModel = "isnet_fp16";
+// PC GPU (WebGPU) measured reliably correct and fast. Mobile GPU measured
+// the opposite on a real device: the result came back fully transparent
+// *and* slower than CPU. So the config now branches on detected form factor
+// instead of one global default — mobile stays on the verified-correct CPU
+// path, desktop gets the verified-correct GPU path.
+//
+// UA sniffing alone misses iPadOS Safari, which reports a desktop macOS UA —
+// touch support is the only reliable signal for those, so it's checked too.
+function detectIsMobile(): boolean {
+  const mobileUA = /Android|iPhone|iPod|iPad|Mobile|Windows Phone|BlackBerry/i.test(navigator.userAgent);
+  const isTouchDevice = navigator.maxTouchPoints > 0;
+  return mobileUA || isTouchDevice;
+}
 
-// NOT "gpu" — tested it directly: real-world timing dropped to ~400ms (from
-// ~7-9s on threaded CPU), which sounded great until the actual output image
-// turned out to be fully transparent — the subject removed along with the
-// background instead of just the background. A fast, silently-wrong result
-// is worse than a slow, correct one, so this stays on the verified-correct
-// CPU path unless/until the library's WebGPU path is confirmed reliable.
-export const DEFAULT_BG_REMOVAL_DEVICE: BgRemovalDevice = "cpu";
+// Kept as a function (not a static constant) so preload (fired on photo
+// pick) and the real removal call (fired on submit) always re-derive and
+// use the *same* config — the library memoizes its model init by config, so
+// a mismatch here would silently throw away the preload's benefit.
+function getBgRemovalConfig(): { model: BgRemovalModel; device: BgRemovalDevice; isMobile: boolean } {
+  const isMobile = detectIsMobile();
+  return isMobile
+    ? { model: "isnet_fp16", device: "cpu", isMobile }
+    : { model: "isnet", device: "gpu", isMobile };
+}
 
 type PendingEntry = { resolve: (value: WorkerResponse) => void; reject: (error: Error) => void };
 
@@ -124,17 +131,18 @@ export async function removeBackgroundWithFallback(
   source: Blob,
   options: RemoveBackgroundOptions = {},
 ): Promise<RemoveBackgroundResult> {
+  const detected = getBgRemovalConfig();
   const {
     timeoutMs = DEFAULT_TIMEOUT_MS,
-    model = DEFAULT_BG_REMOVAL_MODEL,
-    device = DEFAULT_BG_REMOVAL_DEVICE,
+    model = detected.model,
+    device = detected.device,
   } = options;
 
   try {
     const response = await send({ type: "remove", blob: source, model, device }, timeoutMs);
     if (response.status === "error") throw new Error(response.message);
     if (response.type !== "remove") throw new Error("unexpected-worker-response");
-    alert(`배경 제거 소요 시간: ${response.elapsedMs.toFixed(0)}ms`);
+    alert(`판정: ${detected.isMobile ? "모바일" : "PC"} / 배경 제거 소요 시간: ${response.elapsedMs.toFixed(0)}ms`);
     return { blob: response.blob, usedFallback: false };
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
@@ -151,10 +159,11 @@ export async function removeBackgroundWithFallback(
  * failure the real run just pays the init cost itself later, same as today.
  */
 export function preloadBackgroundRemovalModel(
-  model: BgRemovalModel = DEFAULT_BG_REMOVAL_MODEL,
-  device: BgRemovalDevice = DEFAULT_BG_REMOVAL_DEVICE,
+  model?: BgRemovalModel,
+  device?: BgRemovalDevice,
 ): void {
-  send({ type: "preload", model, device }).catch((error) => {
+  const detected = getBgRemovalConfig();
+  send({ type: "preload", model: model ?? detected.model, device: device ?? detected.device }).catch((error) => {
     console.warn("[background-removal] preload failed:", error);
   });
 }

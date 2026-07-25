@@ -34,7 +34,10 @@ export async function isHeicImage(blob: Blob): Promise<boolean> {
 export async function convertHeicToJpeg(blob: Blob): Promise<Blob> {
   try {
     const { default: heic2any } = await import("heic2any");
+    const start = performance.now();
     const result = await heic2any({ blob, toType: "image/jpeg", quality: 0.9 });
+    const elapsedMs = performance.now() - start;
+    alert(`HEIC 변환 소요 시간: ${elapsedMs.toFixed(0)}ms`);
     return Array.isArray(result) ? result[0] : result;
   } catch (error) {
     console.warn("[heic] conversion failed, using the original file as-is:", error);

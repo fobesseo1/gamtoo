@@ -15,8 +15,10 @@ import { renderPoster } from "@/lib/render";
 import { getPosterStorage } from "@/lib/storage";
 import { supabase } from "@/lib/supabase/client";
 import { signInWithGoogle } from "@/lib/supabase/auth";
+import type { CharacterName } from "@/lib/characters/constants";
 import { BgRemovalLoadingMessage, useLoadingMessageIndex } from "@/components/bg-removal-loading-message";
 import { CelebrationScreen } from "@/components/celebration-screen";
+import { CharacterWithHat } from "@/components/character-with-hat";
 import { ProcessingScreen } from "@/components/processing-screen";
 import { ProgressBar } from "@/components/progress-bar";
 import { RetryingNotice } from "@/components/retrying-notice";
@@ -68,6 +70,40 @@ function dataUrlToBlob(dataUrl: string): Blob {
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return new Blob([bytes], { type: mime });
+}
+
+interface AcquiredItem {
+  character: CharacterName;
+  itemName: string;
+  hatSvgPath: string;
+}
+
+// The drop judgment itself runs server-side (supabase/functions/drop-item)
+// so it can trust the caller's JWT instead of a client-sent user id --
+// this just calls it and, if an item actually dropped, looks up which
+// character to show it on. A failure here is a bonus feature not working,
+// never a reason to fail the save that already succeeded.
+async function reportItemDrop(postId: string, userId: string): Promise<AcquiredItem | null> {
+  try {
+    const { data, error } = await supabase.functions.invoke("drop-item", { body: { postId } });
+    if (error) throw error;
+    if (!data?.itemDropped || !data.item) return null;
+
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("main_character")
+      .eq("id", userId)
+      .maybeSingle();
+
+    return {
+      character: (profileRow?.main_character as CharacterName | undefined) ?? "bear",
+      itemName: data.item.name,
+      hatSvgPath: data.item.svg_path,
+    };
+  } catch (error) {
+    console.error("[drop-item] failed:", error);
+    return null;
+  }
 }
 
 // One poster-caption line, not a paragraph — roughly 20 Korean characters or
@@ -129,6 +165,9 @@ export default function MakePage() {
   // empty form for the instant between landing back on this page and the
   // stashed poster actually finishing its upload.
   const [resumingSave, setResumingSave] = useState(false);
+  // Set only when the drop-item Edge Function actually granted a new item
+  // on this save -- see reportItemDrop below.
+  const [acquiredItem, setAcquiredItem] = useState<AcquiredItem | null>(null);
 
   const router = useRouter();
 
@@ -169,7 +208,7 @@ export default function MakePage() {
       const pending: PendingSave = JSON.parse(raw);
       sessionStorage.removeItem(PENDING_SAVE_KEY);
       try {
-        await getPosterStorage().save({
+        const saved = await getPosterStorage().save({
           templateId: pending.templateId,
           category: pending.category,
           imageBlob: dataUrlToBlob(pending.imageDataUrl),
@@ -177,6 +216,9 @@ export default function MakePage() {
           location: pending.location,
           hasPhoto: pending.hasPhoto,
         });
+        // Fire-and-forget: this path is already navigating away to /archive,
+        // there's no result screen left to show the reveal on.
+        void reportItemDrop(saved.id, data.user.id);
         router.replace("/archive");
       } catch (err) {
         console.error(err);
@@ -401,7 +443,7 @@ export default function MakePage() {
 
     setSaveStatus("saving");
     try {
-      await getPosterStorage().save({
+      const saved = await getPosterStorage().save({
         templateId: template.id,
         category: template.category,
         imageBlob: displayedPoster.blob,
@@ -410,6 +452,9 @@ export default function MakePage() {
         hasPhoto: Boolean(photoFile),
       });
       setSaveStatus("saved");
+
+      const acquired = await reportItemDrop(saved.id, userData.user.id);
+      if (acquired) setAcquiredItem(acquired);
     } catch (err) {
       console.error(err);
       setError("저장하는 중 문제가 생겼어요. 다시 시도해주세요.");
@@ -430,6 +475,7 @@ export default function MakePage() {
     setBgRemoved(false);
     setSaveStatus("idle");
     setBgFallbackReason(null);
+    setAcquiredItem(null);
     pickPhotoTemplate().then(setPreselectedTemplate);
   };
 
@@ -515,6 +561,16 @@ export default function MakePage() {
             <p className="text-[14px] text-body">
               {bgRemoved ? "배경을 지운 버전" : "원본 사진 버전"}으로 보관함에 저장했어요.
             </p>
+            {acquiredItem && (
+              <div className="flex w-full flex-col items-center gap-2 rounded-md border border-hairline bg-canvas p-4 text-center">
+                <p className="text-[14px] font-medium text-ink">{acquiredItem.itemName}을(를) 획득했어요!</p>
+                <CharacterWithHat
+                  character={acquiredItem.character}
+                  hatSvgPath={acquiredItem.hatSvgPath}
+                  className="w-28"
+                />
+              </div>
+            )}
             <div className="flex w-full gap-3">
               <button
                 onClick={handleReset}

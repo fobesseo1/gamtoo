@@ -41,19 +41,8 @@ addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
       return;
     }
 
-    let device: "cpu" | "gpu" = "cpu";
-    try {
-      const gpu = (navigator as unknown as { gpu?: { requestAdapter: () => Promise<unknown> } }).gpu;
-      if (gpu && (await gpu.requestAdapter())) device = "gpu";
-    } catch {}
-
-    const removeConfig = {
-      model: "isnet" as const,
-      device,
-    };
-
     const start = performance.now();
-    const blob = await removeBackground(request.blob, removeConfig);
+    const blob = await removeBackground(request.blob, config);
     const elapsedMs = performance.now() - start;
     const response: WorkerResponse = { id: request.id, type: "remove", status: "done", blob, elapsedMs };
     postMessage(response);

@@ -69,7 +69,7 @@ addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
     // logic needed on our end.
     const config = {
       model: request.model,
-      device: request.device,
+      device: "gpu" as const,
       publicPath: `${self.location.origin}/bgr/`,
       debug: true,
       proxyToWorker: true,

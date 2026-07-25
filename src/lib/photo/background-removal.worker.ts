@@ -21,7 +21,7 @@ export type WorkerRequest =
   | { id: number; type: "preload"; model?: BgRemovalModel; device?: BgRemovalDevice };
 
 export type WorkerResponse =
-  | { id: number; type: "remove"; status: "done"; blob: Blob }
+  | { id: number; type: "remove"; status: "done"; blob: Blob; elapsedMs: number }
   | { id: number; type: "preload"; status: "done" }
   | { id: number; status: "error"; message: string };
 
@@ -41,8 +41,22 @@ addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
       return;
     }
 
-    const blob = await removeBackground(request.blob, config);
-    const response: WorkerResponse = { id: request.id, type: "remove", status: "done", blob };
+    let device: "cpu" | "gpu" = "cpu";
+    try {
+      const gpu = (navigator as unknown as { gpu?: { requestAdapter: () => Promise<unknown> } }).gpu;
+      if (gpu && (await gpu.requestAdapter())) device = "gpu";
+    } catch {}
+
+    const removeConfig = {
+      model: request.model,
+      device,
+      output: { format: "image/webp" as const, quality: 0.92 },
+    };
+
+    const start = performance.now();
+    const blob = await removeBackground(request.blob, removeConfig);
+    const elapsedMs = performance.now() - start;
+    const response: WorkerResponse = { id: request.id, type: "remove", status: "done", blob, elapsedMs };
     postMessage(response);
   } catch (error) {
     const response: WorkerResponse = {

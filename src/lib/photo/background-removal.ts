@@ -134,6 +134,7 @@ export async function removeBackgroundWithFallback(
     const response = await send({ type: "remove", blob: source, model, device }, timeoutMs);
     if (response.status === "error") throw new Error(response.message);
     if (response.type !== "remove") throw new Error("unexpected-worker-response");
+    alert(`배경 제거 소요 시간: ${response.elapsedMs.toFixed(0)}ms`);
     return { blob: response.blob, usedFallback: false };
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);

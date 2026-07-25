@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -100 270 370" overflow="visible">
+<defs>
+  <radialGradient id="bnPom" cx="0.38" cy="0.3" r="0.95">
+    <stop offset="0" stop-color="var(--hat-light, #c9e2da)"></stop>
+    <stop offset="1" stop-color="var(--hat-base, #8fb6ad)"></stop>
+  </radialGradient>
+  <radialGradient id="bnDome" cx="0.35" cy="0.22" r="1.1">
+    <stop offset="0" stop-color="var(--hat-light, #c9e2da)"></stop>
+    <stop offset="0.55" stop-color="var(--hat-base, #8fb6ad)"></stop>
+    <stop offset="1" stop-color="var(--hat-dark, #6f9c92)"></stop>
+  </radialGradient>
+  <linearGradient id="bnBand" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="var(--hat-light, #c9e2da)"></stop>
+    <stop offset="0.45" stop-color="var(--hat-base, #8fb6ad)"></stop>
+    <stop offset="1" stop-color="var(--hat-dark, #6f9c92)"></stop>
+  </linearGradient>
+</defs>
+<circle cx="135" cy="-62" r="21" fill="url(#bnPom)"></circle>
+<circle cx="128" cy="-68" r="7" fill="#ffffff" opacity="0.5"></circle>
+<path d="M63,24 C63,-46 207,-46 207,24 L207,28 L63,28 Z" fill="url(#bnDome)"></path>
+<ellipse cx="103" cy="-22" rx="30" ry="15" fill="#ffffff" opacity="0.35" transform="rotate(-20 103 -22)"></ellipse>
+<rect x="57" y="12" width="156" height="30" rx="15" fill="url(#bnBand)"></rect>
+<path d="M85,17 L83,37" stroke="var(--hat-dark, #6f9c92)" stroke-width="4" stroke-linecap="round" opacity="0.3"></path>
+<path d="M110,17 L109,37" stroke="var(--hat-dark, #6f9c92)" stroke-width="4" stroke-linecap="round" opacity="0.3"></path>
+<path d="M135,17 L135,37" stroke="var(--hat-dark, #6f9c92)" stroke-width="4" stroke-linecap="round" opacity="0.3"></path>
+<path d="M160,17 L161,37" stroke="var(--hat-dark, #6f9c92)" stroke-width="4" stroke-linecap="round" opacity="0.3"></path>
+<path d="M185,17 L187,37" stroke="var(--hat-dark, #6f9c92)" stroke-width="4" stroke-linecap="round" opacity="0.3"></path>
+</svg>

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -100 270 370" overflow="visible">
+<defs>
+  <linearGradient id="crGold" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#f2d489"></stop>
+    <stop offset="0.5" stop-color="#ddb45c"></stop>
+    <stop offset="1" stop-color="#b28a3e"></stop>
+  </linearGradient>
+  <radialGradient id="crRed" cx="0.4" cy="0.25" r="1">
+    <stop offset="0" stop-color="#e06d84"></stop>
+    <stop offset="0.6" stop-color="#c04a63"></stop>
+    <stop offset="1" stop-color="#93374c"></stop>
+  </radialGradient>
+</defs>
+<path d="M83,-48 C94,-30 101,-14 103,6 L69,12 C67,-12 73,-30 83,-48 Z" fill="url(#crGold)"></path>
+<path d="M187,-48 C176,-30 169,-14 167,6 L201,12 C203,-12 197,-30 187,-48 Z" fill="url(#crGold)"></path>
+<path d="M135,-74 C147,-50 155,-28 155,-2 L115,-2 C115,-28 123,-50 135,-74 Z" fill="url(#crGold)"></path>
+<circle cx="135" cy="-77" r="9" fill="#f2d489"></circle>
+<circle cx="132" cy="-80" r="3" fill="#ffffff" opacity="0.7"></circle>
+<circle cx="83" cy="-51" r="7.5" fill="#f2d489"></circle>
+<circle cx="80.5" cy="-53.5" r="2.5" fill="#ffffff" opacity="0.7"></circle>
+<circle cx="187" cy="-51" r="7.5" fill="#f2d489"></circle>
+<circle cx="184.5" cy="-53.5" r="2.5" fill="#ffffff" opacity="0.7"></circle>
+<path d="M77,18 C77,-26 193,-26 193,18 Z" fill="url(#crRed)"></path>
+<ellipse cx="112" cy="-8" rx="20" ry="11" fill="#ffffff" opacity="0.28" transform="rotate(-20 112 -8)"></ellipse>
+<rect x="63" y="14" width="144" height="28" rx="13" fill="url(#crGold)"></rect>
+<circle cx="100" cy="28" r="5.5" fill="#c04a63"></circle>
+<circle cx="135" cy="28" r="5.5" fill="#5f9ea0"></circle>
+<circle cx="170" cy="28" r="5.5" fill="#c04a63"></circle>
+</svg>

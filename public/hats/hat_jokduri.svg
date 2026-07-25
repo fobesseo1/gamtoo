@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -100 270 370" overflow="visible">
+<defs>
+  <linearGradient id="jdBody" x1="0.2" y1="0" x2="0.9" y2="1">
+    <stop offset="0" stop-color="#5c6490"></stop>
+    <stop offset="0.55" stop-color="#3e4468"></stop>
+    <stop offset="1" stop-color="#2b3050"></stop>
+  </linearGradient>
+  <radialGradient id="jdBead" cx="0.4" cy="0.3" r="0.95">
+    <stop offset="0" stop-color="#e06d84"></stop>
+    <stop offset="1" stop-color="#c04a63"></stop>
+  </radialGradient>
+</defs>
+<path d="M104,40 L96,-16 C96,-30 110,-38 135,-38 C160,-38 174,-30 174,-16 L166,40 Z" fill="url(#jdBody)"></path>
+<ellipse cx="135" cy="-27" rx="39" ry="11" fill="#4d5480"></ellipse>
+<ellipse cx="135" cy="-29" rx="32" ry="8" fill="#333a5e"></ellipse>
+<ellipse cx="115" cy="-14" rx="12" ry="20" fill="#ffffff" opacity="0.18" transform="rotate(-12 115 -14)"></ellipse>
+<path d="M100,4 L170,4" stroke="#ddb45c" stroke-width="7" stroke-linecap="round" opacity="0.95"></path>
+<circle cx="118" cy="4" r="3" fill="#c04a63"></circle>
+<circle cx="135" cy="4" r="3" fill="#5f9ea0"></circle>
+<circle cx="152" cy="4" r="3" fill="#c04a63"></circle>
+<circle cx="135" cy="-33" r="6" fill="#ddb45c"></circle>
+<circle cx="135" cy="-45" r="11" fill="url(#jdBead)"></circle>
+<circle cx="131" cy="-49" r="3.5" fill="#ffffff" opacity="0.6"></circle>
+</svg>

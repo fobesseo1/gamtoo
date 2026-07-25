@@ -1,9 +1,9 @@
 import type { NewPosterRecord, PosterRecord } from "./types";
 
 /**
- * Storage abstraction the rest of the app codes against. IndexedDB backs it
- * today; swapping in a Supabase-backed implementation later (for account
- * sync) means adding a new class here, not touching call sites.
+ * Storage abstraction the rest of the app codes against. Supabase (Postgres
+ * `posts` + Storage) backs it, scoped per-user via RLS -- see
+ * supabase-storage.ts and docs/gamtoo-item-system.md 4.0.
  */
 export interface PosterStorage {
   save(record: NewPosterRecord): Promise<PosterRecord>;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useBackgroundRemoval } from "@/lib/photo/use-background-removal";
 import { preloadMediaPipeSegmenter } from "@/lib/photo/background-removal";
@@ -12,6 +13,8 @@ import { pickRandomTemplate, getCurrentTimeOfDay } from "@/lib/templates";
 import type { PosterTemplate } from "@/lib/templates";
 import { renderPoster } from "@/lib/render";
 import { getPosterStorage } from "@/lib/storage";
+import { supabase } from "@/lib/supabase/client";
+import { signInWithGoogle } from "@/lib/supabase/auth";
 import { BgRemovalLoadingMessage, useLoadingMessageIndex } from "@/components/bg-removal-loading-message";
 import { CelebrationScreen } from "@/components/celebration-screen";
 import { ProcessingScreen } from "@/components/processing-screen";
@@ -30,6 +33,42 @@ interface RenderedPoster {
 // fanfare only plays once work is actually done, so this doesn't need to
 // track real progress; it's just long enough to register as a payoff.
 const CELEBRATION_BURST_MS = 1400;
+
+// "저장하기" only asks for a Google login at this point, not on entry to the
+// app (see docs/gamtoo-item-system.md 4.0). Google's OAuth flow is a full
+// page navigation, not a popup, so all of this component's React state is
+// gone by the time the user lands back here — the in-progress poster is
+// stashed in sessionStorage (base64, since it has to survive a page
+// reload) and the save resumes automatically once ?resume=save is seen
+// with an active session.
+const PENDING_SAVE_KEY = "gamtoo-pending-save";
+
+interface PendingSave {
+  templateId: string;
+  category: string;
+  userText: string;
+  location: string;
+  hasPhoto: boolean;
+  imageDataUrl: string;
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error ?? new Error("blob-read-failed"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function dataUrlToBlob(dataUrl: string): Blob {
+  const [header, base64] = dataUrl.split(",");
+  const mime = header.match(/data:(.*?);base64/)?.[1] ?? "image/png";
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
 
 // One poster-caption line, not a paragraph — roughly 20 Korean characters or
 // 40 English ones (see lib/text-length for the weighting behind this).
@@ -85,6 +124,13 @@ export default function MakePage() {
   // access on a phone) — shown as a small note, not a blocking error, since
   // the poster still completes fine with the original photo either way.
   const [bgFallbackReason, setBgFallbackReason] = useState<string | null>(null);
+  // True only while resuming a save that was interrupted by the Google
+  // login redirect (see PENDING_SAVE_KEY above) -- avoids flashing the
+  // empty form for the instant between landing back on this page and the
+  // stashed poster actually finishing its upload.
+  const [resumingSave, setResumingSave] = useState(false);
+
+  const router = useRouter();
 
   useEffect(() => {
     pickPhotoTemplate().then(setPreselectedTemplate);
@@ -101,6 +147,44 @@ export default function MakePage() {
       setLocation((prev) => (prev === "" ? label : prev));
     });
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("resume") !== "save") return;
+
+    const raw = sessionStorage.getItem(PENDING_SAVE_KEY);
+    if (!raw) return;
+
+    setResumingSave(true);
+    (async () => {
+      const { data } = await supabase.auth.getUser();
+      if (!data.user) {
+        // Login didn't actually complete (e.g. cancelled at Google's
+        // screen) -- leave the stashed poster in place so pressing "저장하기"
+        // again can pick it back up, instead of losing it silently.
+        setResumingSave(false);
+        return;
+      }
+
+      const pending: PendingSave = JSON.parse(raw);
+      sessionStorage.removeItem(PENDING_SAVE_KEY);
+      try {
+        await getPosterStorage().save({
+          templateId: pending.templateId,
+          category: pending.category,
+          imageBlob: dataUrlToBlob(pending.imageDataUrl),
+          userText: pending.userText,
+          location: pending.location,
+          hasPhoto: pending.hasPhoto,
+        });
+        router.replace("/archive");
+      } catch (err) {
+        console.error(err);
+        setError("저장하는 중 문제가 생겼어요. 다시 시도해주세요.");
+        setResumingSave(false);
+      }
+    })();
+  }, [router]);
 
   const { run: removeBackground, progress, retrying, cancelRetry } = useBackgroundRemoval();
   const loadingMessageIndex = useLoadingMessageIndex();
@@ -296,6 +380,25 @@ export default function MakePage() {
 
   const handleSave = async () => {
     if (!displayedPoster || !template) return;
+
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) {
+      // Stash everything handleSave would otherwise need, since the OAuth
+      // redirect below wipes this component's state -- see PENDING_SAVE_KEY.
+      const imageDataUrl = await blobToDataUrl(displayedPoster.blob);
+      const pending: PendingSave = {
+        templateId: template.id,
+        category: template.category,
+        userText: userText.trim() || DEFAULT_CAPTION,
+        location: location.trim() || DEFAULT_LOCATION,
+        hasPhoto: Boolean(photoFile),
+        imageDataUrl,
+      };
+      sessionStorage.setItem(PENDING_SAVE_KEY, JSON.stringify(pending));
+      await signInWithGoogle(`${window.location.origin}/make?resume=save`);
+      return;
+    }
+
     setSaveStatus("saving");
     try {
       await getPosterStorage().save({
@@ -304,6 +407,7 @@ export default function MakePage() {
         imageBlob: displayedPoster.blob,
         userText: userText.trim() || DEFAULT_CAPTION,
         location: location.trim() || DEFAULT_LOCATION,
+        hasPhoto: Boolean(photoFile),
       });
       setSaveStatus("saved");
     } catch (err) {
@@ -339,7 +443,13 @@ export default function MakePage() {
 
   let content: React.ReactNode;
 
-  if (step === "processing") {
+  if (resumingSave) {
+    content = (
+      <main className="flex flex-1 items-center justify-center px-6 py-24">
+        <p className="text-[14px] text-muted">저장하는 중...</p>
+      </main>
+    );
+  } else if (step === "processing") {
     content = (
       <ProcessingScreen
         photoPreviewUrl={photoPreviewUrl}

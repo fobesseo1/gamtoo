@@ -47,7 +47,7 @@ const DEFAULT_TIMEOUT_MS = 90000;
 //
 // UA sniffing alone misses iPadOS Safari, which reports a desktop macOS UA —
 // touch support is the only reliable signal for those, so it's checked too.
-function detectIsMobile(): boolean {
+export function detectIsMobile(): boolean {
   const mobileUA = /Android|iPhone|iPod|iPad|Mobile|Windows Phone|BlackBerry/i.test(navigator.userAgent);
   const isTouchDevice = navigator.maxTouchPoints > 0;
   return mobileUA || isTouchDevice;

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { SiteHeader } from "@/components/site-header";
 import { StartupDiagnostics } from "@/components/startup-diagnostics";
+import { ModelCacheWarmer } from "@/components/model-cache-warmer";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -17,6 +18,7 @@ export default function RootLayout({
     <html lang="ko" className="h-full antialiased">
       <body className="flex min-h-full flex-col bg-canvas text-ink">
         <StartupDiagnostics />
+        <ModelCacheWarmer />
         <SiteHeader />
         {children}
       </body>

@@ -71,7 +71,7 @@ addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
       model: "isnet" as const,
       device: "gpu" as const,
       publicPath: `${self.location.origin}/bgr/`,
-      debug: true,
+      debug: false,
       proxyToWorker: true,
       output: { format: "image/webp" as const, quality: 0.92 },
     };
@@ -88,13 +88,6 @@ addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
     const blob = await removeBackground(shrunk, config);
     const elapsedMs = performance.now() - start;
 
-    // @ts-expect-error -- onnxruntime-web's package.json "exports" hides its
-    // types.d.ts from TS's module resolution; runtime import is unaffected.
-    const ort = (await import("onnxruntime-web")) as {
-      env: { wasm: { numThreads?: number; simd?: boolean } };
-    };
-    console.log("ORT threads:", ort.env.wasm.numThreads);
-    console.log("ORT simd:", ort.env.wasm.simd);
     const response: WorkerResponse = { id: request.id, type: "remove", status: "done", blob, elapsedMs };
     postMessage(response);
   } catch (error) {

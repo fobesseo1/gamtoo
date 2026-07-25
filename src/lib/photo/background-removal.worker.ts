@@ -48,9 +48,8 @@ addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
     } catch {}
 
     const removeConfig = {
-      model: request.model,
+      model: "isnet" as const,
       device,
-      output: { format: "image/webp" as const, quality: 0.92 },
     };
 
     const start = performance.now();

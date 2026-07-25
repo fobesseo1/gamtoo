@@ -64,6 +64,12 @@ const ALPHA_SHARPEN_HIGH = 0.6;
 // misclassified background pixels don't show up as stray specks.
 const KEEP_LARGEST_COMPONENT_ONLY = true;
 const LARGEST_COMPONENT_ALPHA_THRESHOLD = 10;
+// If MediaPipe's mask keeps less than this fraction of the photo, the
+// subject probably isn't a person at all (a corn dog, a toy, ...) --
+// selfie_multiclass has no "this isn't a person" signal of its own, it just
+// quietly erases almost everything. Below this, the result is untrustworthy
+// enough to retry with imgly instead of shipping it.
+const MIN_ALIVE_ALPHA_RATIO = 0.08;
 // --------------------------------------------------------------------------
 
 // selfie_multiclass_256x256's category order (official MediaPipe docs):
@@ -220,6 +226,16 @@ async function removeBackgroundMediaPipe(source: Blob): Promise<Blob> {
   if (APPLY_ALPHA_SHARPENING) applyAlphaSharpening(alpha);
   if (KEEP_LARGEST_COMPONENT_ONLY) keepLargestComponent(alpha, width, height);
 
+  let aliveCount = 0;
+  for (let i = 0; i < alpha.length; i++) {
+    if (alpha[i] > LARGEST_COMPONENT_ALPHA_THRESHOLD) aliveCount++;
+  }
+  const aliveRatio = aliveCount / alpha.length;
+  if (aliveRatio < MIN_ALIVE_ALPHA_RATIO) {
+    bitmap.close();
+    throw new Error(`mediapipe-low-alpha-coverage:${(aliveRatio * 100).toFixed(1)}%`);
+  }
+
   const canvas = new OffscreenCanvas(width, height);
   const ctx = canvas.getContext("2d")!;
   ctx.drawImage(bitmap, 0, 0);
@@ -239,6 +255,7 @@ export type WorkerRequest =
   | { id: number; type: "preloadMediaPipe" };
 
 export type WorkerResponse =
+  | { id: number; type: "remove"; status: "retrying" }
   | { id: number; type: "remove"; status: "done"; blob: Blob; elapsedMs: number }
   | { id: number; type: "preload"; status: "done" }
   | { id: number; type: "preloadMediaPipe"; status: "done" }
@@ -291,6 +308,8 @@ addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
         blob = await removeBackgroundMediaPipe(shrunk);
       } catch (mediapipeError) {
         console.warn("[background-removal] MediaPipe failed, falling back to imgly cpu:", mediapipeError);
+        const retrying: WorkerResponse = { id: request.id, type: "remove", status: "retrying" };
+        postMessage(retrying);
         blob = await removeBackground(shrunk, config);
       }
     }

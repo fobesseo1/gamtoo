@@ -16,6 +16,7 @@ import { BgRemovalLoadingMessage, useLoadingMessageIndex } from "@/components/bg
 import { CelebrationScreen } from "@/components/celebration-screen";
 import { ProcessingScreen } from "@/components/processing-screen";
 import { ProgressBar } from "@/components/progress-bar";
+import { RetryingNotice } from "@/components/retrying-notice";
 import { PawTapButton } from "@/components/paw-tap-button";
 
 type Step = "form" | "processing" | "celebrating" | "result";
@@ -101,7 +102,7 @@ export default function MakePage() {
     });
   }, []);
 
-  const { run: removeBackground, progress } = useBackgroundRemoval();
+  const { run: removeBackground, progress, retrying, cancelRetry } = useBackgroundRemoval();
   const loadingMessageIndex = useLoadingMessageIndex();
 
   const canSubmit = Boolean(photoFile) || userText.trim().length > 0;
@@ -212,7 +213,10 @@ export default function MakePage() {
       if (photoFile && picked.category === "photo") {
         try {
           const removed = await removeBackground(bgRemovalPhotoFile ?? photoFile);
-          if (removed.usedFallback) {
+          // A user-cancelled retry isn't a failure worth explaining -- they
+          // chose it, so skip the note entirely instead of showing the
+          // internal reason string.
+          if (removed.usedFallback && removed.fallbackReason !== "background-removal-cancelled") {
             setBgFallbackReason(removed.fallbackReason ?? "알 수 없는 이유");
           }
           const cutoutBlob = await renderPoster(picked, {
@@ -341,6 +345,8 @@ export default function MakePage() {
         photoPreviewUrl={photoPreviewUrl}
         progress={progress}
         messageIndex={loadingMessageIndex}
+        retrying={retrying}
+        onCancelRetry={cancelRetry}
       />
     );
   } else if (step === "celebrating") {
@@ -377,10 +383,14 @@ export default function MakePage() {
         </div>
 
         {bgProcessing && (
-          <div className="flex w-full flex-col items-center gap-2 text-center">
-            <BgRemovalLoadingMessage index={loadingMessageIndex} />
-            <ProgressBar progress={progress} />
-          </div>
+          retrying ? (
+            <RetryingNotice onCancel={cancelRetry} />
+          ) : (
+            <div className="flex w-full flex-col items-center gap-2 text-center">
+              <BgRemovalLoadingMessage index={loadingMessageIndex} />
+              <ProgressBar progress={progress} />
+            </div>
+          )
         )}
 
         {error && <p className="text-[14px] text-error">{error}</p>}

@@ -2,11 +2,14 @@ import { BgRemovalLoadingMessage, MESSAGE_CHARACTERS } from "./bg-removal-loadin
 import { CharacterLoadingAnimation } from "./character-loading-animation";
 import { CHARACTER_FACES } from "./character-faces";
 import { ProgressBar } from "./progress-bar";
+import { RetryingNotice } from "./retrying-notice";
 
 interface ProcessingScreenProps {
   photoPreviewUrl?: string | null;
   progress?: number;
   messageIndex: number;
+  retrying?: boolean;
+  onCancelRetry?: () => void;
 }
 
 /** The honest "still working" screen — shown while the poster is actually
@@ -16,7 +19,7 @@ interface ProcessingScreenProps {
  * name (or the whole group, for the generic messages), plus a real progress
  * bar, so the fanfare in CelebrationScreen stays reserved for genuine
  * completion instead of having to carry the whole wait on its own. */
-export function ProcessingScreen({ photoPreviewUrl, progress = 0, messageIndex }: ProcessingScreenProps) {
+export function ProcessingScreen({ photoPreviewUrl, progress = 0, messageIndex, retrying = false, onCancelRetry }: ProcessingScreenProps) {
   return (
     <main className="flex flex-1 flex-col items-center justify-center gap-8 px-6 py-16 text-center">
       {photoPreviewUrl ? (
@@ -37,8 +40,14 @@ export function ProcessingScreen({ photoPreviewUrl, progress = 0, messageIndex }
       )}
 
       <div className="flex w-full flex-col items-center gap-3">
-        <BgRemovalLoadingMessage index={messageIndex} />
-        {photoPreviewUrl && <ProgressBar progress={progress} />}
+        {retrying && onCancelRetry ? (
+          <RetryingNotice onCancel={onCancelRetry} />
+        ) : (
+          <>
+            <BgRemovalLoadingMessage index={messageIndex} />
+            {photoPreviewUrl && <ProgressBar progress={progress} />}
+          </>
+        )}
       </div>
     </main>
   );

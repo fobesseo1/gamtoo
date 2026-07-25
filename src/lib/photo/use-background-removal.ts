@@ -13,6 +13,10 @@ interface BackgroundRemovalState {
   resultBlob: Blob | null;
   usedFallback: boolean;
   fallbackReason?: string;
+  /** True while a low-confidence mobile MediaPipe result is being retried
+   * with imgly instead — see background-removal.worker.ts's
+   * MIN_ALIVE_ALPHA_RATIO check. */
+  retrying: boolean;
 }
 
 const INITIAL_STATE: BackgroundRemovalState = {
@@ -20,6 +24,7 @@ const INITIAL_STATE: BackgroundRemovalState = {
   progress: 0,
   resultBlob: null,
   usedFallback: false,
+  retrying: false,
 };
 
 // Now that the actual inference runs in a Worker (see background-removal.ts),
@@ -46,6 +51,11 @@ export function useBackgroundRemoval() {
   // shared worker (which only ever processes one removal at a time).
   const runningFor = useRef<Blob | null>(null);
   const runningPromise = useRef<Promise<RemoveBackgroundResult> | null>(null);
+  // Only ever aborted by the user (see cancelRetry) -- the worker itself has
+  // no cancellation, so this just stops removeBackgroundWithFallback from
+  // waiting any longer; the worker keeps computing in the background and its
+  // eventual response is ignored.
+  const abortController = useRef<AbortController | null>(null);
 
   const run = useCallback((source: Blob, options: RunOptions = {}): Promise<RemoveBackgroundResult> => {
     if (runningFor.current === source && runningPromise.current) {
@@ -53,6 +63,8 @@ export function useBackgroundRemoval() {
     }
 
     runningFor.current = source;
+    const controller = new AbortController();
+    abortController.current = controller;
     setState({ ...INITIAL_STATE, status: "processing" });
 
     const timer = setInterval(() => {
@@ -72,18 +84,24 @@ export function useBackgroundRemoval() {
         // things up (the model resizes to a fixed 1024x1024 internally either
         // way, so inference cost was never the part this could shrink).
         const { blob: downscaled } = await downscaleImage(source);
-        const result = await removeBackgroundWithFallback(downscaled, { model: options.model });
+        const result = await removeBackgroundWithFallback(downscaled, {
+          model: options.model,
+          signal: controller.signal,
+          onRetrying: () => {
+            if (runningFor.current === source) setState((prev) => ({ ...prev, retrying: true }));
+          },
+        });
 
         // Only crop when the background was actually removed — a fallback blob
         // is still the original opaque photo, so there's no transparent margin to trim.
         const finalBlob = result.usedFallback ? result.blob : (await cropToContent(result.blob)).blob;
         const finalResult = { blob: finalBlob, usedFallback: result.usedFallback, fallbackReason: result.fallbackReason };
 
-        // A photo that's since been swapped out can't be cancelled (the
-        // worker has no abort — see background-removal.ts) so it keeps
-        // running to completion in the background; when it finally
-        // resolves, it should just quietly finish instead of stomping
-        // whatever the newer photo's run has already reported.
+        // A photo that's since been swapped out can't be cancelled the same
+        // way (the worker itself has no abort — see background-removal.ts)
+        // so it keeps running to completion in the background; when it
+        // finally resolves, it should just quietly finish instead of
+        // stomping whatever the newer photo's run has already reported.
         if (runningFor.current === source) {
           setState({
             status: "done",
@@ -91,6 +109,7 @@ export function useBackgroundRemoval() {
             resultBlob: finalResult.blob,
             usedFallback: finalResult.usedFallback,
             fallbackReason: finalResult.fallbackReason,
+            retrying: false,
           });
         }
         return finalResult;
@@ -103,11 +122,18 @@ export function useBackgroundRemoval() {
     return promise;
   }, []);
 
+  // Lets the user give up on the automatic retry and use the original photo
+  // instead — see removeBackgroundWithFallback's `signal` handling.
+  const cancelRetry = useCallback(() => {
+    abortController.current?.abort();
+    setState((prev) => ({ ...prev, retrying: false }));
+  }, []);
+
   const reset = useCallback(() => {
     runningFor.current = null;
     runningPromise.current = null;
     setState(INITIAL_STATE);
   }, []);
 
-  return { ...state, run, reset };
+  return { ...state, run, reset, cancelRetry };
 }

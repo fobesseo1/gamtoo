@@ -20,6 +20,13 @@ interface RemoveBackgroundOptions {
   timeoutMs?: number;
   model?: BgRemovalModel;
   device?: BgRemovalDevice;
+  /** Aborting resolves the call with the original photo instead of waiting
+   * for the worker — used to let a user cancel out of the slower automatic
+   * retry below without any real worker-side cancellation support. */
+  signal?: AbortSignal;
+  /** Fired if the mobile MediaPipe pass came back too thin to trust and an
+   * imgly retry has started — purely informational, for UI. */
+  onRetrying?: () => void;
 }
 
 // A cold start (model never downloaded/initialized in this tab yet) can
@@ -56,7 +63,14 @@ function getBgRemovalConfig(): { model: BgRemovalModel; device: BgRemovalDevice;
     : { model: "isnet", device: "gpu", isMobile };
 }
 
-type PendingEntry = { resolve: (value: WorkerResponse) => void; reject: (error: Error) => void };
+type PendingEntry = {
+  resolve: (value: WorkerResponse) => void;
+  reject: (error: Error) => void;
+  /** Intermediate, non-terminal messages (currently only "remove"/"retrying")
+   * go here instead of resolving -- the entry stays pending until a real
+   * "done"/"error" response arrives. */
+  onStatus?: (response: WorkerResponse) => void;
+};
 
 // One Worker, reused across preload + every removal call for the tab's
 // lifetime: recreating it per-call would throw away the whole point of
@@ -78,6 +92,10 @@ function getWorker(): Worker {
   worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
     const entry = pending.get(event.data.id);
     if (!entry) return;
+    if ("type" in event.data && event.data.type === "remove" && event.data.status === "retrying") {
+      entry.onStatus?.(event.data);
+      return;
+    }
     pending.delete(event.data.id);
     entry.resolve(event.data);
   };
@@ -95,7 +113,11 @@ function getWorker(): Worker {
   return worker;
 }
 
-function send(request: DistributiveOmit<WorkerRequest, "id">, timeoutMs?: number): Promise<WorkerResponse> {
+function send(
+  request: DistributiveOmit<WorkerRequest, "id">,
+  timeoutMs?: number,
+  onStatus?: (response: WorkerResponse) => void,
+): Promise<WorkerResponse> {
   const worker = getWorker();
   const id = nextRequestId++;
 
@@ -116,6 +138,7 @@ function send(request: DistributiveOmit<WorkerRequest, "id">, timeoutMs?: number
         if (timer) clearTimeout(timer);
         reject(error);
       },
+      onStatus,
     });
 
     worker.postMessage({ id, ...request } as WorkerRequest);
@@ -136,12 +159,35 @@ export async function removeBackgroundWithFallback(
     timeoutMs = DEFAULT_TIMEOUT_MS,
     model = detected.model,
     device = detected.device,
+    signal,
+    onRetrying,
   } = options;
 
   try {
-    const response = await send({ type: "remove", blob: source, model, device }, timeoutMs);
+    const sendPromise = send({ type: "remove", blob: source, model, device }, timeoutMs, (statusResponse) => {
+      if ("type" in statusResponse && statusResponse.type === "remove" && statusResponse.status === "retrying") onRetrying?.();
+    });
+
+    // No real worker-side cancellation exists (see getWorker() above) -- an
+    // abort just stops waiting on this end and falls through to the catch
+    // block below, same as any other failure. The worker keeps computing in
+    // the background and its eventual response is simply ignored (nothing
+    // is pending for this id by then).
+    const response = signal
+      ? await Promise.race([
+          sendPromise,
+          new Promise<never>((_resolve, reject) => {
+            if (signal.aborted) {
+              reject(new Error("background-removal-cancelled"));
+              return;
+            }
+            signal.addEventListener("abort", () => reject(new Error("background-removal-cancelled")), { once: true });
+          }),
+        ])
+      : await sendPromise;
+
     if (response.status === "error") throw new Error(response.message);
-    if (response.type !== "remove") throw new Error("unexpected-worker-response");
+    if (response.type !== "remove" || response.status !== "done") throw new Error("unexpected-worker-response");
     alert(`판정: ${detected.isMobile ? "모바일" : "PC"} / 배경 제거 소요 시간: ${response.elapsedMs.toFixed(0)}ms`);
     return { blob: response.blob, usedFallback: false };
   } catch (error) {

@@ -52,7 +52,7 @@ function detectIsMobile(): boolean {
 function getBgRemovalConfig(): { model: BgRemovalModel; device: BgRemovalDevice; isMobile: boolean } {
   const isMobile = detectIsMobile();
   return isMobile
-    ? { model: "isnet_fp16", device: "cpu", isMobile }
+    ? { model: "isnet_quint8", device: "cpu", isMobile }
     : { model: "isnet", device: "gpu", isMobile };
 }
 

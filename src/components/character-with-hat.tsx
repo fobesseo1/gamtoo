@@ -16,7 +16,7 @@ interface CharacterWithHatProps {
  * correct here. */
 export function CharacterWithHat({ character, hatSvgPath, className }: CharacterWithHatProps) {
   return (
-    <svg viewBox="0 -100 270 370" className={className}>
+    <svg viewBox="0 -100 270 370" overflow="visible" className={className}>
       <InlineSvgContent src={`/characters/char_${character}.svg`} />
       {hatSvgPath && <InlineSvgContent src={hatSvgPath} />}
     </svg>

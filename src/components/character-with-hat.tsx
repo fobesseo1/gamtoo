@@ -5,6 +5,9 @@ interface CharacterWithHatProps {
   character: CharacterName;
   /** e.g. "/hats/hat_crown.svg" -- omit to render the character alone. */
   hatSvgPath?: string;
+  /** Renders the hat layer as a silhouette (see InlineSvgContent) -- used
+   * for the collection detail view on an item the user hasn't gotten yet. */
+  hatSilhouette?: boolean;
   className?: string;
 }
 
@@ -14,11 +17,11 @@ interface CharacterWithHatProps {
  * anchor/offset math is needed -- the hat is just drawn on top. The hat
  * partially covering ears/antennae is intentional (3.2), not a bug to
  * correct here. */
-export function CharacterWithHat({ character, hatSvgPath, className }: CharacterWithHatProps) {
+export function CharacterWithHat({ character, hatSvgPath, hatSilhouette, className }: CharacterWithHatProps) {
   return (
     <svg viewBox="0 -100 270 370" overflow="visible" className={className}>
       <InlineSvgContent src={`/characters/char_${character}.svg`} />
-      {hatSvgPath && <InlineSvgContent src={hatSvgPath} />}
+      {hatSvgPath && <InlineSvgContent src={hatSvgPath} silhouette={hatSilhouette} />}
     </svg>
   );
 }

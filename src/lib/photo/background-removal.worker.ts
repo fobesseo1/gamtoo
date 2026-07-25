@@ -51,6 +51,27 @@ async function shrinkForBgRemoval(source: Blob): Promise<Blob> {
   return canvas.convertToBlob({ type: "image/png" });
 }
 
+// --- Mask post-processing toggles ---------------------------------------
+// Bilinear (vs. nearest-neighbor) interpolation when upscaling the model's
+// small native-resolution mask up to the full photo size.
+const MASK_UPSCALE_BILINEAR = true;
+// Pushes the smooth confidence gradient at the mask's edge toward a harder
+// cutoff instead of a soft blend, so edges read as sharp instead of hazy.
+const APPLY_ALPHA_SHARPENING = true;
+const ALPHA_SHARPEN_LOW = 0.45;
+const ALPHA_SHARPEN_HIGH = 0.6;
+// Drops every foreground blob except the largest connected one, so isolated
+// misclassified background pixels don't show up as stray specks.
+const KEEP_LARGEST_COMPONENT_ONLY = true;
+const LARGEST_COMPONENT_ALPHA_THRESHOLD = 10;
+// --------------------------------------------------------------------------
+
+// selfie_multiclass_256x256's category order (official MediaPipe docs):
+// 0 background, 1 hair, 2 body-skin, 3 face-skin, 4 clothes, 5 others. Using
+// 1 - P(background) as alpha keeps every non-background category (hair,
+// skin, face, clothes, accessories) without having to enumerate them.
+const BACKGROUND_CATEGORY_INDEX = 0;
+
 // Mobile-only path: MediaPipe's selfie segmenter is a much smaller/faster
 // model than imgly's isnet family, and its "GPU" delegate is WebGL-based
 // (not WebGPU), which is what actually works reliably on mobile GPUs --
@@ -66,7 +87,7 @@ function getSegmenter(): Promise<ImageSegmenter> {
       const vision = await FilesetResolver.forVisionTasks(`${self.location.origin}/mediapipe/wasm`);
       return ImageSegmenter.createFromOptions(vision, {
         baseOptions: {
-          modelAssetPath: `${self.location.origin}/mediapipe/selfie_segmenter.tflite`,
+          modelAssetPath: `${self.location.origin}/mediapipe/selfie_multiclass_256x256.tflite`,
           delegate: "GPU",
         },
         outputCategoryMask: false,
@@ -77,39 +98,137 @@ function getSegmenter(): Promise<ImageSegmenter> {
   return segmenterPromise;
 }
 
-// Runs selfie segmentation and applies the resulting per-pixel confidence
-// mask as the output image's alpha channel, so the result is a transparent
-// PNG/WebP in the same shape as imgly's removeBackground() output -- callers
-// downstream (cropToContent, poster compositing) don't need to know which
-// engine produced it.
+// Upscales a single-channel mask (native model resolution, e.g. 256px) to
+// the target size via a plain canvas draw -- imageSmoothingEnabled controls
+// whether that scale is bilinear/bicubic or nearest-neighbor, so this is
+// also where the MASK_UPSCALE_BILINEAR toggle takes effect.
+function upscaleMask(
+  maskValues: Float32Array,
+  maskWidth: number,
+  maskHeight: number,
+  targetWidth: number,
+  targetHeight: number,
+): Uint8ClampedArray {
+  const small = new OffscreenCanvas(maskWidth, maskHeight);
+  const smallCtx = small.getContext("2d")!;
+  const smallImageData = smallCtx.createImageData(maskWidth, maskHeight);
+  for (let i = 0; i < maskWidth * maskHeight; i++) {
+    const v = Math.max(0, Math.min(255, Math.round(maskValues[i] * 255)));
+    smallImageData.data[i * 4] = v;
+    smallImageData.data[i * 4 + 1] = v;
+    smallImageData.data[i * 4 + 2] = v;
+    smallImageData.data[i * 4 + 3] = 255;
+  }
+  smallCtx.putImageData(smallImageData, 0, 0);
+
+  const large = new OffscreenCanvas(targetWidth, targetHeight);
+  const largeCtx = large.getContext("2d")!;
+  largeCtx.imageSmoothingEnabled = MASK_UPSCALE_BILINEAR;
+  largeCtx.imageSmoothingQuality = "high";
+  largeCtx.drawImage(small, 0, 0, targetWidth, targetHeight);
+
+  const upscaled = largeCtx.getImageData(0, 0, targetWidth, targetHeight).data;
+  const result = new Uint8ClampedArray(targetWidth * targetHeight);
+  for (let i = 0; i < result.length; i++) result[i] = upscaled[i * 4];
+  return result;
+}
+
+function applyAlphaSharpening(alpha: Uint8ClampedArray): void {
+  const low = ALPHA_SHARPEN_LOW * 255;
+  const range = (ALPHA_SHARPEN_HIGH - ALPHA_SHARPEN_LOW) * 255;
+  for (let i = 0; i < alpha.length; i++) {
+    alpha[i] = Math.max(0, Math.min(255, Math.round(((alpha[i] - low) / range) * 255)));
+  }
+}
+
+// Iterative (stack-based, not recursive -- a 4-connectivity flood fill over
+// a megapixel-scale image would blow the call stack otherwise) 4-connected
+// component labeling. Zeroes every foreground blob except the largest.
+function keepLargestComponent(alpha: Uint8ClampedArray, width: number, height: number): void {
+  const size = width * height;
+  const labels = new Int32Array(size).fill(-1);
+  const stack: number[] = [];
+  let bestLabel = -1;
+  let bestSize = 0;
+  let nextLabel = 0;
+
+  for (let start = 0; start < size; start++) {
+    if (labels[start] !== -1 || alpha[start] <= LARGEST_COMPONENT_ALPHA_THRESHOLD) continue;
+    const label = nextLabel++;
+    let count = 0;
+    labels[start] = label;
+    stack.push(start);
+    while (stack.length > 0) {
+      const idx = stack.pop()!;
+      count++;
+      const x = idx % width;
+      const y = (idx / width) | 0;
+      if (x > 0) {
+        const n = idx - 1;
+        if (labels[n] === -1 && alpha[n] > LARGEST_COMPONENT_ALPHA_THRESHOLD) { labels[n] = label; stack.push(n); }
+      }
+      if (x < width - 1) {
+        const n = idx + 1;
+        if (labels[n] === -1 && alpha[n] > LARGEST_COMPONENT_ALPHA_THRESHOLD) { labels[n] = label; stack.push(n); }
+      }
+      if (y > 0) {
+        const n = idx - width;
+        if (labels[n] === -1 && alpha[n] > LARGEST_COMPONENT_ALPHA_THRESHOLD) { labels[n] = label; stack.push(n); }
+      }
+      if (y < height - 1) {
+        const n = idx + width;
+        if (labels[n] === -1 && alpha[n] > LARGEST_COMPONENT_ALPHA_THRESHOLD) { labels[n] = label; stack.push(n); }
+      }
+    }
+    if (count > bestSize) {
+      bestSize = count;
+      bestLabel = label;
+    }
+  }
+
+  if (bestLabel === -1) return;
+  for (let i = 0; i < size; i++) {
+    if (labels[i] !== bestLabel) alpha[i] = 0;
+  }
+}
+
+// Runs selfie segmentation and applies the resulting per-pixel mask as the
+// output image's alpha channel, so the result is a transparent PNG/WebP in
+// the same shape as imgly's removeBackground() output -- callers downstream
+// (cropToContent, poster compositing) don't need to know which engine
+// produced it.
 async function removeBackgroundMediaPipe(source: Blob): Promise<Blob> {
   const segmenter = await getSegmenter();
   const bitmap = await createImageBitmap(source);
 
   const result = segmenter.segment(bitmap);
-  const mask = result.confidenceMasks?.[0];
-  if (!mask) {
+  const backgroundMask = result.confidenceMasks?.[BACKGROUND_CATEGORY_INDEX];
+  if (!backgroundMask) {
     result.close();
     bitmap.close();
     throw new Error("mediapipe-no-confidence-mask");
   }
 
-  const maskData = mask.getAsFloat32Array();
-  const width = mask.width;
-  const height = mask.height;
+  const backgroundData = backgroundMask.getAsFloat32Array();
+  const foreground = new Float32Array(backgroundData.length);
+  for (let i = 0; i < backgroundData.length; i++) foreground[i] = 1 - backgroundData[i];
+
+  const { width, height } = bitmap;
+  const alpha = upscaleMask(foreground, backgroundMask.width, backgroundMask.height, width, height);
+  result.close();
+
+  if (APPLY_ALPHA_SHARPENING) applyAlphaSharpening(alpha);
+  if (KEEP_LARGEST_COMPONENT_ONLY) keepLargestComponent(alpha, width, height);
 
   const canvas = new OffscreenCanvas(width, height);
   const ctx = canvas.getContext("2d")!;
-  ctx.drawImage(bitmap, 0, 0, width, height);
+  ctx.drawImage(bitmap, 0, 0);
   bitmap.close();
 
   const imageData = ctx.getImageData(0, 0, width, height);
   const pixels = imageData.data;
-  for (let i = 0; i < width * height; i++) {
-    pixels[i * 4 + 3] = Math.max(0, Math.min(255, Math.round(pixels[i * 4 + 3] * maskData[i])));
-  }
+  for (let i = 0; i < width * height; i++) pixels[i * 4 + 3] = alpha[i];
   ctx.putImageData(imageData, 0, 0);
-  result.close();
 
   return canvas.convertToBlob({ type: "image/webp", quality: 0.92 });
 }

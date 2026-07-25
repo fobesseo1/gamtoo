@@ -235,16 +235,27 @@ async function removeBackgroundMediaPipe(source: Blob): Promise<Blob> {
 
 export type WorkerRequest =
   | { id: number; type: "remove"; blob: Blob; model?: BgRemovalModel; device?: BgRemovalDevice }
-  | { id: number; type: "preload"; model?: BgRemovalModel; device?: BgRemovalDevice };
+  | { id: number; type: "preload"; model?: BgRemovalModel; device?: BgRemovalDevice }
+  | { id: number; type: "preloadMediaPipe" };
 
 export type WorkerResponse =
   | { id: number; type: "remove"; status: "done"; blob: Blob; elapsedMs: number }
   | { id: number; type: "preload"; status: "done" }
+  | { id: number; type: "preloadMediaPipe"; status: "done" }
   | { id: number; status: "error"; message: string };
 
 addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
   const request = event.data;
   try {
+    if (request.type === "preloadMediaPipe") {
+      // Warms up the mobile MediaPipe path only -- desktop never touches
+      // getSegmenter(), so this can't affect the imgly + WebGPU path.
+      await getSegmenter();
+      const response: WorkerResponse = { id: request.id, type: "preloadMediaPipe", status: "done" };
+      postMessage(response);
+      return;
+    }
+
     const { removeBackground, preload } = await import("@imgly/background-removal");
     // "gpu" only actually engages WebGPU if the library's own feature
     // detection (navigator.gpu.requestAdapter()) succeeds — otherwise it

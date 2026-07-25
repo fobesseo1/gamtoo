@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useBackgroundRemoval } from "@/lib/photo/use-background-removal";
+import { preloadMediaPipeSegmenter } from "@/lib/photo/background-removal";
 import { downscaleImage } from "@/lib/photo/downscale-image";
 import { isHeicImage, convertHeicToJpeg } from "@/lib/photo/heic";
 import { detectLocationLabel } from "@/lib/geolocation";
@@ -110,6 +111,12 @@ export default function MakePage() {
       return;
     }
 
+    // Model download + WebGL setup for the mobile bg-removal path doesn't
+    // depend on which photo was picked, so it can start immediately instead
+    // of waiting for HEIC detection/decode to finish first -- overlapping
+    // the two cuts real wall-clock time when both are slow.
+    const mediaPipePreload = preloadMediaPipeSegmenter();
+
     setPhotoLoading(true);
     try {
       // Android Chrome/Brave can invalidate a picked File's underlying content
@@ -123,11 +130,13 @@ export default function MakePage() {
       let blob: Blob = new Blob([buffer], { type: file.type });
 
       // iPhones save photos as HEIC by default (since iOS 11) — no browser
-      // except Safari can decode it natively, so it's converted to JPEG here,
-      // once, before anything else touches it. This is the slow step (a
-      // few seconds) that photoLoading covers.
+      // except Safari can decode it natively, so it's converted here, once,
+      // before anything else touches it. This is the slow step (a few
+      // seconds) that photoLoading covers. Runs alongside the MediaPipe
+      // preload above instead of after it.
       if (await isHeicImage(blob)) {
-        blob = await convertHeicToJpeg(blob);
+        const [decoded] = await Promise.all([convertHeicToJpeg(blob), mediaPipePreload]);
+        blob = decoded;
       }
 
       setPhotoFile(blob);

@@ -25,13 +25,61 @@ export async function isHeicImage(blob: Blob): Promise<boolean> {
   return HEIF_BRANDS.has(readAscii4(8));
 }
 
-/** Converts a HEIC/HEIF blob to JPEG entirely client-side (no server round
- * trip) — every non-Safari browser lacks a built-in HEIC decoder, so this is
- * the only way an iPhone photo (HEIC by default since iOS 11) works
- * anywhere else. Never throws: on conversion failure, returns the original
- * blob so the caller's existing decode/error path handles it, same as
- * before this existed. */
+type HeicWorkerResponse =
+  | { id: number; status: "done"; blob: Blob }
+  | { id: number; status: "error"; message: string };
+
+let heicWorker: Worker | null = null;
+let nextHeicRequestId = 0;
+const pendingHeicRequests = new Map<number, { resolve: (blob: Blob) => void; reject: (error: Error) => void }>();
+
+function getHeicWorker(): Worker {
+  if (heicWorker) return heicWorker;
+
+  const worker = new Worker(new URL("./heic-decode.worker.ts", import.meta.url));
+  worker.onmessage = (event: MessageEvent<HeicWorkerResponse>) => {
+    const entry = pendingHeicRequests.get(event.data.id);
+    if (!entry) return;
+    pendingHeicRequests.delete(event.data.id);
+    if (event.data.status === "error") entry.reject(new Error(event.data.message));
+    else entry.resolve(event.data.blob);
+  };
+  worker.onerror = (event) => {
+    for (const entry of pendingHeicRequests.values()) {
+      entry.reject(new Error(event.message || "heic-decode-worker-error"));
+    }
+    pendingHeicRequests.clear();
+    heicWorker = null;
+  };
+  heicWorker = worker;
+  return worker;
+}
+
+// Decodes straight to pixels via libheif-js (see heic-decode.worker.ts)
+// instead of heic2any's decode-then-re-encode-to-JPEG round trip.
+function decodeHeicFast(blob: Blob): Promise<Blob> {
+  const worker = getHeicWorker();
+  const id = nextHeicRequestId++;
+  return new Promise((resolve, reject) => {
+    pendingHeicRequests.set(id, { resolve, reject });
+    worker.postMessage({ id, blob });
+  });
+}
+
+/** Converts a HEIC/HEIF blob to a regular image blob entirely client-side
+ * (no server round trip) — every non-Safari browser lacks a built-in HEIC
+ * decoder, so this is the only way an iPhone photo (HEIC by default since
+ * iOS 11) works anywhere else. Tries the fast libheif-js path first; on any
+ * failure (unsupported HEIC variant, worker crash, etc.) falls back to the
+ * slower heic2any path, and if that also fails, returns the original blob
+ * so the caller's existing decode/error path handles it. */
 export async function convertHeicToJpeg(blob: Blob): Promise<Blob> {
+  try {
+    return await decodeHeicFast(blob);
+  } catch (error) {
+    console.warn("[heic] fast libheif decode failed, falling back to heic2any:", error);
+  }
+
   try {
     const { default: heic2any } = await import("heic2any");
     const start = performance.now();

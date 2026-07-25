@@ -167,3 +167,19 @@ export function preloadBackgroundRemovalModel(
     console.warn("[background-removal] preload failed:", error);
   });
 }
+
+/**
+ * Warms up the mobile MediaPipe segmenter (model download + WebGL setup)
+ * without running a segmentation, so it's already ready by the time a real
+ * mobile removal needs it. Returns a Promise (rather than being
+ * fire-and-forget like preloadBackgroundRemovalModel) so callers can run it
+ * alongside other startup work via Promise.all; failures are swallowed the
+ * same way, since the real run just pays the init cost itself later.
+ */
+export function preloadMediaPipeSegmenter(): Promise<void> {
+  return send({ type: "preloadMediaPipe" })
+    .then(() => undefined)
+    .catch((error) => {
+      console.warn("[background-removal] MediaPipe preload failed:", error);
+    });
+}

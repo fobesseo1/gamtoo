@@ -41,6 +41,14 @@ addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
       return;
     }
 
+    // @ts-expect-error -- onnxruntime-web's package.json "exports" hides its
+    // types.d.ts from TS's module resolution; runtime import is unaffected.
+    const ort = (await import("onnxruntime-web")) as {
+      env: { wasm: { numThreads?: number; simd?: boolean } };
+    };
+    console.log("ORT threads:", ort.env.wasm.numThreads);
+    console.log("ORT simd:", ort.env.wasm.simd);
+
     const start = performance.now();
     const blob = await removeBackground(request.blob, config);
     const elapsedMs = performance.now() - start;

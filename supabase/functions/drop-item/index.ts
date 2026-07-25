@@ -23,10 +23,6 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-function todayUtc(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return jsonResponse({ error: "method-not-allowed" }, 405);
@@ -71,12 +67,11 @@ Deno.serve(async (req: Request) => {
 
     const { data: profile, error: profileError } = await admin
       .from("profiles")
-      .select("amaze_count, last_drop_date")
+      .select("amaze_count")
       .eq("id", userId)
       .maybeSingle();
     if (profileError) throw profileError;
 
-    const today = todayUtc();
     const newAmazeCount = (profile?.amaze_count ?? 0) + 1;
 
     // "감탄" -- always +1 for a saved record, independent of whether an
@@ -87,23 +82,11 @@ Deno.serve(async (req: Request) => {
       .upsert({ id: userId, amaze_count: newAmazeCount }, { onConflict: "id" });
     if (amazeError) throw amazeError;
 
-    // Dev-only escape hatch for the daily limit, off unless someone has
-    // explicitly run `supabase secrets set ALLOW_TEST_DROPS=1` -- there's
-    // no separate dev/prod Supabase project here, so this is a server-side
-    // secret rather than anything a client request can control (a client
-    // sending its own bypass flag would defeat the whole point). Unset the
-    // secret (`supabase secrets unset ALLOW_TEST_DROPS`) once done testing;
-    // nothing else turns this back off automatically.
-    const bypassDailyLimit = Deno.env.get("ALLOW_TEST_DROPS") === "1";
-    const alreadyDroppedToday = !bypassDailyLimit && profile?.last_drop_date === today;
-    const eligibleForDrop = post.has_photo === true && !alreadyDroppedToday;
-
-    if (!eligibleForDrop) {
-      return jsonResponse({
-        amazeCount: newAmazeCount,
-        itemDropped: false,
-        reason: !post.has_photo ? "no-photo" : "already-dropped-today",
-      });
+    // No once-per-day limit (removed 2026-07-26 -- see 5.2): a photo is the
+    // only condition. profiles.last_drop_date is kept in the schema in case
+    // this needs to come back, but nothing here reads or writes it anymore.
+    if (!post.has_photo) {
+      return jsonResponse({ amazeCount: newAmazeCount, itemDropped: false, reason: "no-photo" });
     }
 
     // Phase 1: guaranteed drop of the one seeded item, no rarity/color roll
@@ -120,12 +103,6 @@ Deno.serve(async (req: Request) => {
     // Phase 1 has nothing else to roll. Anything else is a real error.
     const alreadyOwned = insertError?.code === UNIQUE_VIOLATION;
     if (insertError && !alreadyOwned) throw insertError;
-
-    const { error: dropDateError } = await admin
-      .from("profiles")
-      .update({ last_drop_date: today })
-      .eq("id", userId);
-    if (dropDateError) throw dropDateError;
 
     const { data: item, error: itemError } = await admin
       .from("items")

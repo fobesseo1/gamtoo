@@ -1,4 +1,5 @@
 import type { BgRemovalDevice, BgRemovalModel, WorkerRequest, WorkerResponse } from "./background-removal.worker";
+import { DEBUG } from "@/lib/debug";
 
 export type { BgRemovalModel, BgRemovalDevice };
 
@@ -164,7 +165,7 @@ export async function removeBackgroundWithFallback(
   } = options;
 
   try {
-    const sendPromise = send({ type: "remove", blob: source, model, device }, timeoutMs, (statusResponse) => {
+    const sendPromise = send({ type: "remove", blob: source, model, device, debug: DEBUG }, timeoutMs, (statusResponse) => {
       if ("type" in statusResponse && statusResponse.type === "remove" && statusResponse.status === "retrying") onRetrying?.();
     });
 
@@ -188,7 +189,7 @@ export async function removeBackgroundWithFallback(
 
     if (response.status === "error") throw new Error(response.message);
     if (response.type !== "remove" || response.status !== "done") throw new Error("unexpected-worker-response");
-    alert(`판정: ${detected.isMobile ? "모바일" : "PC"} / 배경 제거 소요 시간: ${response.elapsedMs.toFixed(0)}ms`);
+    if (DEBUG) console.log(`판정: ${detected.isMobile ? "모바일" : "PC"} / 배경 제거 소요 시간: ${response.elapsedMs.toFixed(0)}ms`);
     return { blob: response.blob, usedFallback: false };
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);

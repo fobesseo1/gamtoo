@@ -1,3 +1,5 @@
+import { DEBUG } from "@/lib/debug";
+
 // HEIC/HEIF files are an ISO-BMFF container (the same family as MP4/MOV) —
 // bytes 4-7 spell "ftyp", followed by a 4-character brand. Checking the
 // actual bytes (rather than trusting the OS/browser-reported file.type,
@@ -98,7 +100,7 @@ export async function convertHeicToJpeg(blob: Blob): Promise<HeicDecodeResult> {
     const start = performance.now();
     const result = await heic2any({ blob, toType: "image/jpeg", quality: 0.9 });
     const elapsedMs = performance.now() - start;
-    alert(`HEIC 변환 소요 시간: ${elapsedMs.toFixed(0)}ms`);
+    if (DEBUG) console.log(`HEIC 변환 소요 시간: ${elapsedMs.toFixed(0)}ms`);
     const converted = Array.isArray(result) ? result[0] : result;
     return { poster: converted, bgRemoval: converted };
   } catch (error) {

@@ -250,7 +250,7 @@ async function removeBackgroundMediaPipe(source: Blob): Promise<Blob> {
 }
 
 export type WorkerRequest =
-  | { id: number; type: "remove"; blob: Blob; model?: BgRemovalModel; device?: BgRemovalDevice }
+  | { id: number; type: "remove"; blob: Blob; model?: BgRemovalModel; device?: BgRemovalDevice; debug?: boolean }
   | { id: number; type: "preload"; model?: BgRemovalModel; device?: BgRemovalDevice }
   | { id: number; type: "preloadMediaPipe" };
 
@@ -299,6 +299,7 @@ addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
     let blob: Blob;
     if (request.device === "gpu") {
       // Desktop path: imgly + WebGPU + isnet. Untouched by the mobile work below.
+      if (request.debug) console.log("[background-removal] engine: gpu (imgly + WebGPU)");
       blob = await removeBackground(shrunk, config);
     } else {
       // Mobile path: try MediaPipe first, fall back to the existing imgly
@@ -306,8 +307,10 @@ addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
       // any failure -- unsupported delegate, missing WebGL2, etc.
       try {
         blob = await removeBackgroundMediaPipe(shrunk);
+        if (request.debug) console.log("[background-removal] engine: mediapipe");
       } catch (mediapipeError) {
         console.warn("[background-removal] MediaPipe failed, falling back to imgly cpu:", mediapipeError);
+        if (request.debug) console.log("[background-removal] engine: cpu (imgly fallback)");
         const retrying: WorkerResponse = { id: request.id, type: "remove", status: "retrying" };
         postMessage(retrying);
         blob = await removeBackground(shrunk, config);

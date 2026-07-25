@@ -194,3 +194,12 @@ create trigger on_auth_user_created
 insert into public.profiles (id)
 select id from auth.users
 on conflict (id) do nothing;
+
+-- service_role bypasses RLS but still needs the base table grants
+-- separately (same gotcha as template_entries earlier in this file) --
+-- the drop-item Edge Function uses service_role for all its reads/writes
+-- to posts/items/user_items/profiles.
+grant select, insert, update, delete on public.posts to service_role;
+grant select, insert, update, delete on public.items to service_role;
+grant select, insert, update, delete on public.user_items to service_role;
+grant select, insert, update, delete on public.profiles to service_role;

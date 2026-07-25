@@ -5,9 +5,11 @@ import { useBackgroundRemoval } from "@/lib/photo/use-background-removal";
 import { preloadBackgroundRemovalModel, type BgRemovalModel } from "@/lib/photo/background-removal";
 import { downscaleImage } from "@/lib/photo/downscale-image";
 
+// isnet_fp16 removed from this list -- its model chunks aren't self-hosted
+// under public/bgr/ (unused by the live app; see background-removal.ts's
+// getBgRemovalConfig), so picking it here would just 404.
 const MODELS: { value: BgRemovalModel | "default"; label: string }[] = [
-  { value: "default", label: "기본값 (medium = fp16)" },
-  { value: "isnet_fp16", label: "isnet_fp16" },
+  { value: "default", label: "기본값 (기기별 자동 선택)" },
   { value: "isnet_quint8", label: "isnet_quint8 (8비트)" },
   { value: "isnet", label: "isnet (fp32, 최고화질)" },
 ];

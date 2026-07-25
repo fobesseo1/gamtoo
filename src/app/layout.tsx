@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { SiteHeader } from "@/components/site-header";
+import { StartupDiagnostics } from "@/components/startup-diagnostics";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -15,6 +16,7 @@ export default function RootLayout({
   return (
     <html lang="ko" className="h-full antialiased">
       <body className="flex min-h-full flex-col bg-canvas text-ink">
+        <StartupDiagnostics />
         <SiteHeader />
         {children}
       </body>

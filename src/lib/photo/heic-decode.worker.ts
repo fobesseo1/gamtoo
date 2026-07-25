@@ -15,8 +15,6 @@
 // README, not in a .d.ts.
 import libheifModule from "libheif-js/wasm-bundle";
 
-const MAX_HEIC_DECODE_DIMENSION = 1024;
-
 interface HeifDisplayResult {
   data: Uint8ClampedArray;
   width: number;
@@ -38,9 +36,27 @@ interface HeifDecoderInstance {
 
 const libheif = libheifModule as { HeifDecoder: new () => HeifDecoderInstance };
 
+// Matches downscale-image.ts's DEFAULT_MAX_DIMENSION -- the poster's visible
+// "original photo" copy for a HEIC upload should be capped exactly the same
+// as a JPEG/PNG upload's, not silently downgraded because it came from HEIC.
+const POSTER_MAX_DIMENSION = 1600;
+// Matches background-removal.worker.ts's MAX_BG_REMOVAL_DIMENSION.
+const BG_REMOVAL_MAX_DIMENSION = 1024;
+
+async function resizeBitmap(bitmap: ImageBitmap, maxDimension: number): Promise<Blob> {
+  const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
+  const width = Math.max(1, Math.round(bitmap.width * scale));
+  const height = Math.max(1, Math.round(bitmap.height * scale));
+
+  const canvas = new OffscreenCanvas(width, height);
+  const ctx = canvas.getContext("2d")!;
+  ctx.drawImage(bitmap, 0, 0, width, height);
+  return canvas.convertToBlob({ type: "image/webp", quality: 0.92 });
+}
+
 export type HeicDecodeRequest = { id: number; blob: Blob };
 export type HeicDecodeResponse =
-  | { id: number; status: "done"; blob: Blob }
+  | { id: number; status: "done"; poster: Blob; bgRemoval: Blob }
   | { id: number; status: "error"; message: string };
 
 addEventListener("message", async (event: MessageEvent<HeicDecodeRequest>) => {
@@ -60,22 +76,17 @@ addEventListener("message", async (event: MessageEvent<HeicDecodeRequest>) => {
       });
     });
 
+    // Decoded once here, then drawn (read-only, doesn't consume the bitmap)
+    // into two differently-sized canvases below -- no second HEIC decode.
     const bitmap = await createImageBitmap(new ImageData(pixels.data as Uint8ClampedArray<ArrayBuffer>, width, height));
 
-    // Resize on the spot, straight from the decoded pixels, to the same cap
-    // background removal uses -- so a HEIC photo only ever gets resized
-    // once instead of once here and again inside background-removal.worker.ts.
-    const scale = Math.min(1, MAX_HEIC_DECODE_DIMENSION / Math.max(width, height));
-    const targetWidth = Math.max(1, Math.round(width * scale));
-    const targetHeight = Math.max(1, Math.round(height * scale));
-
-    const canvas = new OffscreenCanvas(targetWidth, targetHeight);
-    const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
+    const [poster, bgRemoval] = await Promise.all([
+      resizeBitmap(bitmap, POSTER_MAX_DIMENSION),
+      resizeBitmap(bitmap, BG_REMOVAL_MAX_DIMENSION),
+    ]);
     bitmap.close();
 
-    const blob = await canvas.convertToBlob({ type: "image/webp", quality: 0.92 });
-    const response: HeicDecodeResponse = { id: request.id, status: "done", blob };
+    const response: HeicDecodeResponse = { id: request.id, status: "done", poster, bgRemoval };
     postMessage(response);
   } catch (error) {
     const response: HeicDecodeResponse = {

@@ -54,6 +54,10 @@ async function pickPhotoTemplate(): Promise<PosterTemplate> {
 export default function MakePage() {
   const [step, setStep] = useState<Step>("form");
   const [photoFile, setPhotoFile] = useState<Blob | null>(null);
+  // Same photo as photoFile for a JPEG/PNG upload; for a HEIC upload, a
+  // separately-sized copy (see heic.ts) so background removal doesn't have
+  // to shrink the full poster-quality photo down itself.
+  const [bgRemovalPhotoFile, setBgRemovalPhotoFile] = useState<Blob | null>(null);
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
   // True while a just-picked photo is being read/HEIC-converted, before the
   // preview can show anything — HEIC conversion alone can take a few
@@ -107,6 +111,7 @@ export default function MakePage() {
     const file = e.target.files?.[0] ?? null;
     if (!file) {
       setPhotoFile(null);
+      setBgRemovalPhotoFile(null);
       setPhotoPreviewUrl(null);
       return;
     }
@@ -128,6 +133,7 @@ export default function MakePage() {
       // form, sidesteps it entirely.
       const buffer = await file.arrayBuffer();
       let blob: Blob = new Blob([buffer], { type: file.type });
+      let bgRemovalBlob: Blob = blob;
 
       // iPhones save photos as HEIC by default (since iOS 11) — no browser
       // except Safari can decode it natively, so it's converted here, once,
@@ -136,10 +142,12 @@ export default function MakePage() {
       // preload above instead of after it.
       if (await isHeicImage(blob)) {
         const [decoded] = await Promise.all([convertHeicToJpeg(blob), mediaPipePreload]);
-        blob = decoded;
+        blob = decoded.poster;
+        bgRemovalBlob = decoded.bgRemoval;
       }
 
       setPhotoFile(blob);
+      setBgRemovalPhotoFile(bgRemovalBlob);
       setPhotoPreviewUrl(URL.createObjectURL(blob));
 
       // Only worth starting the real removal early if the template we'll
@@ -150,7 +158,7 @@ export default function MakePage() {
       // Blob, or starts a fresh run that queues behind this one otherwise (the
       // shared worker can't cancel an in-flight run — see
       // background-removal.ts — so a swap just costs a wait, not a redo).
-      if (preselectedTemplate?.category === "photo") void removeBackground(blob);
+      if (preselectedTemplate?.category === "photo") void removeBackground(bgRemovalBlob);
     } finally {
       setPhotoLoading(false);
     }
@@ -158,6 +166,7 @@ export default function MakePage() {
 
   const handleRemovePhoto = () => {
     setPhotoFile(null);
+    setBgRemovalPhotoFile(null);
     setPhotoPreviewUrl(null);
   };
 
@@ -202,7 +211,7 @@ export default function MakePage() {
       let cutoutResult: RenderedPoster | null = null;
       if (photoFile && picked.category === "photo") {
         try {
-          const removed = await removeBackground(photoFile);
+          const removed = await removeBackground(bgRemovalPhotoFile ?? photoFile);
           if (removed.usedFallback) {
             setBgFallbackReason(removed.fallbackReason ?? "알 수 없는 이유");
           }
@@ -263,7 +272,7 @@ export default function MakePage() {
 
     setBgProcessing(true);
     try {
-      const result = await removeBackground(photoFile);
+      const result = await removeBackground(bgRemovalPhotoFile ?? photoFile);
       const blob = await renderPoster(template, {
         userPhoto: result.blob,
         userText: userText.trim() || DEFAULT_CAPTION,
@@ -303,6 +312,7 @@ export default function MakePage() {
   const handleReset = () => {
     setStep("form");
     setPhotoFile(null);
+    setBgRemovalPhotoFile(null);
     setPhotoPreviewUrl(null);
     setUserText("");
     setLocation("");

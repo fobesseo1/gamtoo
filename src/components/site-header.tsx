@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const NAV_ITEMS = [
   { href: "/make", label: "기록하기" },
   { href: "/archive", label: "보관함" },
+  { href: "/profile", label: "내 캐릭터" },
 ];
 
 export function SiteHeader() {

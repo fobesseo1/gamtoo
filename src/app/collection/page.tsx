@@ -32,15 +32,18 @@ interface CollectionSlot {
   totalColorCount: number | null;
 }
 
-function formatDisplayDate(iso: string): string {
+function formatAcquiredAt(iso: string): string {
   const d = new Date(iso);
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
+  const date = `${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
+  const time = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  return `${date} ${time}`;
 }
 
 export default function CollectionPage() {
   const { user, loading: userLoading } = useSupabaseUser();
   const [slots, setSlots] = useState<CollectionSlot[] | null>(null);
   const [mainCharacter, setMainCharacter] = useState<CharacterName>("bear");
+  const [amazeCount, setAmazeCount] = useState<number | null>(null);
   const [selected, setSelected] = useState<CollectionSlot | null>(null);
 
   useEffect(() => {
@@ -51,7 +54,7 @@ export default function CollectionPage() {
       const [itemsResult, ownedResult, profileResult] = await Promise.all([
         supabase.from("items").select("*").order("sort_order", { ascending: true }),
         supabase.from("user_items").select("item_id, color_hex, acquired_at").eq("user_id", user.id),
-        supabase.from("profiles").select("main_character").eq("id", user.id).maybeSingle(),
+        supabase.from("profiles").select("main_character, amaze_count").eq("id", user.id).maybeSingle(),
       ]);
       if (cancelled) return;
 
@@ -75,6 +78,7 @@ export default function CollectionPage() {
       setSlots(nextSlots);
       const character = profileResult.data?.main_character as CharacterName | undefined;
       if (character && (CHARACTER_NAMES as readonly string[]).includes(character)) setMainCharacter(character);
+      setAmazeCount(profileResult.data?.amaze_count ?? 0);
     })();
 
     return () => {
@@ -121,9 +125,12 @@ export default function CollectionPage() {
     <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-10">
       <div className="mb-6 flex items-baseline justify-between">
         <h1 className="text-[20px] font-semibold">도감</h1>
-        <p className="text-[14px] text-muted">
-          {ownedCount} / {slots.length}
-        </p>
+        <div className="flex items-baseline gap-3">
+          <p className="text-[13px] text-muted">감탄 누적 {amazeCount ?? 0}회</p>
+          <p className="text-[14px] text-muted">
+            {ownedCount} / {slots.length}
+          </p>
+        </div>
       </div>
 
       <div className="grid grid-cols-4 gap-4 sm:grid-cols-5 lg:grid-cols-6">
@@ -157,7 +164,7 @@ export default function CollectionPage() {
             <p className="text-[16px] font-semibold text-ink">{selected.owned ? selected.item.name : "???"}</p>
             <p className="text-[13px] text-muted">{RARITY_DISPLAY_NAMES[selected.item.rarity] ?? selected.item.rarity}</p>
             {selected.owned && selected.acquiredAt && (
-              <p className="text-[13px] text-muted">{formatDisplayDate(selected.acquiredAt)} 획득</p>
+              <p className="text-[13px] text-muted">{formatAcquiredAt(selected.acquiredAt)} 획득</p>
             )}
             <button onClick={() => setSelected(null)} className="mt-2 text-[14px] text-muted underline">
               닫기

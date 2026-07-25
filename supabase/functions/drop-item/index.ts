@@ -87,7 +87,15 @@ Deno.serve(async (req: Request) => {
       .upsert({ id: userId, amaze_count: newAmazeCount }, { onConflict: "id" });
     if (amazeError) throw amazeError;
 
-    const alreadyDroppedToday = profile?.last_drop_date === today;
+    // Dev-only escape hatch for the daily limit, off unless someone has
+    // explicitly run `supabase secrets set ALLOW_TEST_DROPS=1` -- there's
+    // no separate dev/prod Supabase project here, so this is a server-side
+    // secret rather than anything a client request can control (a client
+    // sending its own bypass flag would defeat the whole point). Unset the
+    // secret (`supabase secrets unset ALLOW_TEST_DROPS`) once done testing;
+    // nothing else turns this back off automatically.
+    const bypassDailyLimit = Deno.env.get("ALLOW_TEST_DROPS") === "1";
+    const alreadyDroppedToday = !bypassDailyLimit && profile?.last_drop_date === today;
     const eligibleForDrop = post.has_photo === true && !alreadyDroppedToday;
 
     if (!eligibleForDrop) {

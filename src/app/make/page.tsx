@@ -78,28 +78,41 @@ interface AcquiredItem {
   hatSvgPath: string;
 }
 
+interface DropReport {
+  amazeCount: number;
+  acquiredItem: AcquiredItem | null;
+}
+
 // The drop judgment itself runs server-side (supabase/functions/drop-item)
 // so it can trust the caller's JWT instead of a client-sent user id --
-// this just calls it and, if an item actually dropped, looks up which
-// character to show it on. A failure here is a bonus feature not working,
-// never a reason to fail the save that already succeeded.
-async function reportItemDrop(postId: string, userId: string): Promise<AcquiredItem | null> {
+// this just calls it, reads back the always-granted "감탄" count (docs/
+// gamtoo-item-system.md 2.3/5.2 -- every saved record gets it, independent
+// of whether an item happens to drop too), and, if an item actually
+// dropped, looks up which character to show it on. A failure here is a
+// bonus feature not working, never a reason to fail the save that already
+// succeeded.
+async function reportItemDrop(postId: string, userId: string): Promise<DropReport | null> {
   try {
     const { data, error } = await supabase.functions.invoke("drop-item", { body: { postId } });
     if (error) throw error;
-    if (!data?.itemDropped || !data.item) return null;
+    if (typeof data?.amazeCount !== "number") return null;
 
-    const { data: profileRow } = await supabase
-      .from("profiles")
-      .select("main_character")
-      .eq("id", userId)
-      .maybeSingle();
+    let acquiredItem: AcquiredItem | null = null;
+    if (data.itemDropped && data.item) {
+      const { data: profileRow } = await supabase
+        .from("profiles")
+        .select("main_character")
+        .eq("id", userId)
+        .maybeSingle();
 
-    return {
-      character: (profileRow?.main_character as CharacterName | undefined) ?? "bear",
-      itemName: data.item.name,
-      hatSvgPath: data.item.svg_path,
-    };
+      acquiredItem = {
+        character: (profileRow?.main_character as CharacterName | undefined) ?? "bear",
+        itemName: data.item.name,
+        hatSvgPath: data.item.svg_path,
+      };
+    }
+
+    return { amazeCount: data.amazeCount, acquiredItem };
   } catch (error) {
     console.error("[drop-item] failed:", error);
     return null;
@@ -168,6 +181,10 @@ export default function MakePage() {
   // Set only when the drop-item Edge Function actually granted a new item
   // on this save -- see reportItemDrop below.
   const [acquiredItem, setAcquiredItem] = useState<AcquiredItem | null>(null);
+  // "감탄" is granted on every save regardless of whether an item also
+  // dropped (2.3/5.2) -- true once the drop-item call for this save has
+  // actually gone through, driving the "감탄 +1" feedback line.
+  const [amazeGranted, setAmazeGranted] = useState(false);
 
   const router = useRouter();
 
@@ -453,8 +470,11 @@ export default function MakePage() {
       });
       setSaveStatus("saved");
 
-      const acquired = await reportItemDrop(saved.id, userData.user.id);
-      if (acquired) setAcquiredItem(acquired);
+      const dropReport = await reportItemDrop(saved.id, userData.user.id);
+      if (dropReport) {
+        setAmazeGranted(true);
+        if (dropReport.acquiredItem) setAcquiredItem(dropReport.acquiredItem);
+      }
     } catch (err) {
       console.error(err);
       setError("저장하는 중 문제가 생겼어요. 다시 시도해주세요.");
@@ -476,6 +496,7 @@ export default function MakePage() {
     setSaveStatus("idle");
     setBgFallbackReason(null);
     setAcquiredItem(null);
+    setAmazeGranted(false);
     pickPhotoTemplate().then(setPreselectedTemplate);
   };
 
@@ -561,6 +582,7 @@ export default function MakePage() {
             <p className="text-[14px] text-body">
               {bgRemoved ? "배경을 지운 버전" : "원본 사진 버전"}으로 보관함에 저장했어요.
             </p>
+            {amazeGranted && <p className="text-[13px] font-medium text-primary">감탄 +1</p>}
             {acquiredItem && (
               <div className="flex w-full flex-col items-center gap-2 rounded-md border border-hairline bg-canvas p-4 text-center">
                 <p className="text-[14px] font-medium text-ink">{acquiredItem.itemName}을(를) 획득했어요!</p>

@@ -9,6 +9,7 @@ import { InlineSvgContent } from "@/components/inline-svg-content";
 export default function ProfilePage() {
   const { user, loading: userLoading } = useSupabaseUser();
   const [mainCharacter, setMainCharacter] = useState<CharacterName | null>(null);
+  const [amazeCount, setAmazeCount] = useState<number | null>(null);
   const [saving, setSaving] = useState<CharacterName | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -16,7 +17,7 @@ export default function ProfilePage() {
     if (userLoading || !user) return;
     supabase
       .from("profiles")
-      .select("main_character")
+      .select("main_character, amaze_count")
       .eq("id", user.id)
       .maybeSingle()
       .then(({ data, error }) => {
@@ -25,6 +26,7 @@ export default function ProfilePage() {
           return;
         }
         setMainCharacter((data?.main_character as CharacterName | undefined) ?? "bear");
+        setAmazeCount(data?.amaze_count ?? 0);
       });
   }, [user, userLoading]);
 
@@ -75,7 +77,8 @@ export default function ProfilePage() {
   return (
     <main className="mx-auto w-full max-w-md flex-1 px-6 py-10">
       <h1 className="mb-2 text-[20px] font-semibold">내 캐릭터</h1>
-      <p className="mb-6 text-[14px] text-muted">대표 캐릭터는 언제든 바꿀 수 있어요.</p>
+      <p className="text-[14px] text-muted">대표 캐릭터는 언제든 바꿀 수 있어요.</p>
+      <p className="mb-6 text-[13px] text-muted">감탄 누적 {amazeCount ?? 0}회</p>
 
       {error && <p className="mb-4 text-[14px] text-error">{error}</p>}
 

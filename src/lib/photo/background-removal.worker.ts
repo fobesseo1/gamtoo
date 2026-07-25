@@ -33,7 +33,7 @@ addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
     // detection (navigator.gpu.requestAdapter()) succeeds — otherwise it
     // silently uses the wasm path, same as "cpu" ever did. No fallback
     // logic needed on our end.
-    const config = { model: request.model, device: request.device, publicPath: `${self.location.origin}/bgr/` };
+    const config = { model: request.model, device: request.device, publicPath: `${self.location.origin}/bgr/`, debug: true };
     if (request.type === "preload") {
       await preload(config);
       const response: WorkerResponse = { id: request.id, type: "preload", status: "done" };

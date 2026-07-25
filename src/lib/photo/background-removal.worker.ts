@@ -41,6 +41,10 @@ addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
       return;
     }
 
+    const start = performance.now();
+    const blob = await removeBackground(request.blob, config);
+    const elapsedMs = performance.now() - start;
+
     // @ts-expect-error -- onnxruntime-web's package.json "exports" hides its
     // types.d.ts from TS's module resolution; runtime import is unaffected.
     const ort = (await import("onnxruntime-web")) as {
@@ -48,10 +52,6 @@ addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
     };
     console.log("ORT threads:", ort.env.wasm.numThreads);
     console.log("ORT simd:", ort.env.wasm.simd);
-
-    const start = performance.now();
-    const blob = await removeBackground(request.blob, config);
-    const elapsedMs = performance.now() - start;
     const response: WorkerResponse = { id: request.id, type: "remove", status: "done", blob, elapsedMs };
     postMessage(response);
   } catch (error) {

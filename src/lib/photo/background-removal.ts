@@ -222,8 +222,14 @@ export function preloadBackgroundRemovalModel(
  * fire-and-forget like preloadBackgroundRemovalModel) so callers can run it
  * alongside other startup work via Promise.all; failures are swallowed the
  * same way, since the real run just pays the init cost itself later.
+ *
+ * No-ops on desktop -- MediaPipe is mobile-only (the "device" === "gpu"
+ * branch in background-removal.worker.ts never touches it), so calling this
+ * unconditionally would make a desktop visit download and initialize a
+ * WebGL graph it will never use.
  */
 export function preloadMediaPipeSegmenter(): Promise<void> {
+  if (!detectIsMobile()) return Promise.resolve();
   return send({ type: "preloadMediaPipe" })
     .then(() => undefined)
     .catch((error) => {

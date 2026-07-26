@@ -6,6 +6,15 @@ import { HatIcon } from "@/components/hat-icon";
 
 const CROWN_SVG_PATH = "/hats/hat_crown.svg";
 
+const ALL_HATS = [
+  { path: "/hats/hat_crown.svg", label: "왕관" },
+  { path: "/hats/hat_jokduri.svg", label: "족두리" },
+  { path: "/hats/hat_cap.svg", label: "야구모자" },
+  { path: "/hats/hat_straw.svg", label: "밀짚모자" },
+  { path: "/hats/hat_bucket.svg", label: "버킷햇" },
+  { path: "/hats/hat_party.svg", label: "파티 고깔" },
+];
+
 /** Item-system Phase 1 step (2) check: does layering a hat SVG on top of
  * each character SVG (same shared viewBox, see CharacterWithHat) actually
  * work? Shows all 5, not just the bear, since a per-character SVG bug
@@ -54,6 +63,46 @@ export default function ItemsDevPage() {
             <HatIcon svgPath={CROWN_SVG_PATH} silhouette className="w-20" />
             <span className="text-xs text-zinc-500">미획득 (실루엣)</span>
           </div>
+        </div>
+      </section>
+
+      <section>
+        <h2 className="mb-4 text-sm font-medium text-zinc-500">
+          6종 전체 80px — 색상 있음 (common 4종은 팔레트 미정, SVG 폴백 색)
+        </h2>
+        <div className="flex flex-wrap gap-6 rounded-md border border-dashed border-zinc-300 p-4">
+          {ALL_HATS.map((hat) => (
+            <div key={hat.path} className="flex flex-col items-center gap-1">
+              <HatIcon svgPath={hat.path} className="w-20" />
+              <span className="text-xs text-zinc-500">{hat.label}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h2 className="mb-4 text-sm font-medium text-zinc-500">6종 전체 80px — 실루엣 (미획득 상태)</h2>
+        <div className="flex flex-wrap gap-6 rounded-md border border-dashed border-zinc-300 p-4">
+          {ALL_HATS.map((hat) => (
+            <div key={hat.path} className="flex flex-col items-center gap-1">
+              <HatIcon svgPath={hat.path} silhouette className="w-20" />
+              <span className="text-xs text-zinc-500">{hat.label}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h2 className="mb-4 text-sm font-medium text-zinc-500">
+          야구모자 vs 버킷햇 단독 비교 (헷갈리는지 확인용)
+        </h2>
+        <div className="flex flex-wrap gap-6 rounded-md border border-dashed border-zinc-300 p-4">
+          {["/hats/hat_cap.svg", "/hats/hat_bucket.svg"].map((path) => (
+            <div key={path} className="flex gap-3">
+              <HatIcon svgPath={path} className="w-20" />
+              <HatIcon svgPath={path} silhouette className="w-20" />
+            </div>
+          ))}
         </div>
       </section>
     </main>

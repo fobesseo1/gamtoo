@@ -86,16 +86,14 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ amazeCount: newAmazeCount, itemDropped: false, reason: "no-photo" });
     }
 
-    // Random pick among the droppable items -- every seeded item currently
-    // shares one rarity tier (legendary), so this is 5.2 step 3 ("해당
-    // rarity 내에서 item 추첨") without the cross-rarity weighting from 5.3,
-    // which is still undecided. Colorable items (is_colorable=true, e.g. a
-    // future 비니) are excluded on purpose: this function doesn't roll a
-    // color yet, so it can't correctly hand one out.
+    // Random pick among all seeded items, uniform for now -- cross-rarity
+    // weighting (5.3) is still undecided. is_colorable items (the 4 common
+    // hats) are included, but color_hex always stays null below since no
+    // color-rolling logic exists yet -- their SVGs fall back to their own
+    // built-in colors until a palette is decided.
     const { data: droppableItems, error: itemsError } = await admin
       .from("items")
-      .select("id, name, svg_path")
-      .eq("is_colorable", false);
+      .select("id, name, svg_path");
     if (itemsError) throw itemsError;
     if (!droppableItems || droppableItems.length === 0) throw new Error("no-droppable-items");
     const item = droppableItems[Math.floor(Math.random() * droppableItems.length)];

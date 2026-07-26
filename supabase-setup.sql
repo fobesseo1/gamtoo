@@ -235,3 +235,13 @@ alter table public.user_items
 -- like 비니 has. 비니 stays unseeded until its color palette is decided.
 insert into public.items (id, name, category, rarity, is_colorable, svg_path, sort_order)
 values ('hat_jokduri', '족두리', 'hat', 'legendary', false, '/hats/hat_jokduri.svg', 2);
+
+-- Seed 4 common hats (v2 6, 9.2) -- is_colorable=true but color palette is
+-- still undecided, so color_hex stays null and the SVG's own fallback
+-- colors render (no --hat-base etc. injected anywhere yet).
+insert into public.items (id, name, category, rarity, is_colorable, svg_path, sort_order)
+values
+  ('hat_cap', '야구모자', 'hat', 'common', true, '/hats/hat_cap.svg', 3),
+  ('hat_straw', '밀짚모자', 'hat', 'common', true, '/hats/hat_straw.svg', 4),
+  ('hat_bucket', '버킷햇', 'hat', 'common', true, '/hats/hat_bucket.svg', 5),
+  ('hat_party', '파티 고깔', 'hat', 'common', true, '/hats/hat_party.svg', 6);

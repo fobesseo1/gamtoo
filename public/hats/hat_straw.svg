@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -100 270 370">
+<defs>
+<radialGradient id="strawCrown" cx="0.35" cy="0.2" r="1.05"><stop offset="0" stop-color="var(--hat-light, #f0c893)"></stop><stop offset="0.55" stop-color="var(--hat-base, #d69a5a)"></stop><stop offset="1" stop-color="var(--hat-dark, #b0763a)"></stop></radialGradient>
+<radialGradient id="strawBrimTop" cx="0.35" cy="0.3" r="0.85"><stop offset="0" stop-color="var(--hat-light, #f0c893)"></stop><stop offset="0.6" stop-color="var(--hat-base, #d69a5a)"></stop><stop offset="1" stop-color="var(--hat-dark, #b0763a)"></stop></radialGradient>
+<linearGradient id="strawBrimSide" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--hat-base, #d69a5a)"></stop><stop offset="1" stop-color="var(--hat-dark, #b0763a)"></stop></linearGradient>
+<linearGradient id="strawBand" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--hat-dark, #b0763a)"></stop><stop offset="1" stop-color="var(--hat-dark, #b0763a)"></stop></linearGradient>
+</defs>
+<ellipse cx="135" cy="32" rx="100" ry="12" fill="url(#strawBrimSide)"></ellipse><ellipse cx="135" cy="26" rx="100" ry="22" fill="url(#strawBrimTop)"></ellipse><ellipse cx="135" cy="25" rx="84" ry="16" fill="none" stroke="var(--hat-dark, #b0763a)" stroke-width="2" opacity="0.35"></ellipse><path d="M89,26 C89,-46 181,-46 181,26 C181,42 89,42 89,26 Z" fill="url(#strawCrown)"></path><rect x="89" y="14" width="92" height="14" fill="url(#strawBand)"></rect><ellipse cx="115" cy="-20" rx="22" ry="12" fill="#ffffff" opacity="0.25" transform="rotate(-18 115 -20)"></ellipse>
+</svg>

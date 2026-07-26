@@ -9,7 +9,6 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const PHASE_1_ITEM_ID = "hat_crown";
-const UNIQUE_VIOLATION = "23505";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -90,19 +89,17 @@ Deno.serve(async (req: Request) => {
     }
 
     // Phase 1: guaranteed drop of the one seeded item, no rarity/color roll
-    // yet (9, 5.4 -- "Phase 1은 확정 지급으로 시작해도 무방").
+    // yet (9, 5.4 -- "Phase 1은 확정 지급으로 시작해도 무방"). Duplicates are
+    // intentional (v2 2.2/8.4 -- no unique constraint on user_items
+    // anymore) -- always just insert a new row, never check for or react
+    // to an existing one.
     const { error: insertError } = await admin.from("user_items").insert({
       user_id: userId,
       item_id: PHASE_1_ITEM_ID,
       color_hex: null,
       post_id: postId,
     });
-
-    // A unique-constraint hit means they already own this exact item/color
-    // combo -- expected once someone's already gotten the crown, since
-    // Phase 1 has nothing else to roll. Anything else is a real error.
-    const alreadyOwned = insertError?.code === UNIQUE_VIOLATION;
-    if (insertError && !alreadyOwned) throw insertError;
+    if (insertError) throw insertError;
 
     const { data: item, error: itemError } = await admin
       .from("items")
@@ -113,8 +110,7 @@ Deno.serve(async (req: Request) => {
 
     return jsonResponse({
       amazeCount: newAmazeCount,
-      itemDropped: !alreadyOwned,
-      alreadyOwned,
+      itemDropped: true,
       item,
     });
   } catch (error) {

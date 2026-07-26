@@ -203,3 +203,30 @@ grant select, insert, update, delete on public.posts to service_role;
 grant select, insert, update, delete on public.items to service_role;
 grant select, insert, update, delete on public.user_items to service_role;
 grant select, insert, update, delete on public.profiles to service_role;
+
+-- ============================================================
+-- Item system v2 (docs/gamtoo-item-system.md 4.2-4.4, 9.2) -- duplicates
+-- are allowed by design now, and deleting a poster must never be blocked
+-- by an item that happened to drop from it.
+-- ============================================================
+
+-- 1. Duplicates are intentional (v2 2.2, 8.4) -- same item/color can be
+--    earned any number of times, each one its own row.
+alter table public.user_items
+  drop constraint user_items_user_id_item_id_color_hex_key;
+
+-- 2. post_id: loose link, not a hard dependency (v2 4.3). Drop + recreate
+--    the FK with ON DELETE SET NULL so deleting a poster never fails with
+--    a foreign-key violation over an item that came from it.
+alter table public.user_items
+  drop constraint user_items_post_id_fkey;
+
+alter table public.user_items
+  add constraint user_items_post_id_fkey
+  foreign key (post_id) references public.posts
+  on delete set null;
+
+-- 3. consumed_at: reserved for later (v2 4.4) -- no logic reads or writes
+--    this yet.
+alter table public.user_items
+  add column consumed_at timestamptz;

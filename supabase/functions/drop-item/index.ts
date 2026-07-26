@@ -1,14 +1,12 @@
 // Drop-judgment Edge Function (docs/gamtoo-item-system.md 5).
 //
-// Runs server-side on purpose, even though Phase 1 only needs a guaranteed
-// (non-probabilistic) drop -- the probability roll gets added inside this
-// same function later; nothing about the client/server boundary changes
-// when it does. The caller's identity always comes from their JWT
-// (auth.getUser() below), never from a client-supplied user id -- a
-// client could otherwise farm items for someone else's account.
+// Runs server-side on purpose, even without real drop-rate weighting yet
+// (5.3 -- still undecided, needs 5-6 items to feel meaningful) so that
+// adding it later never has to move the client/server boundary. The
+// caller's identity always comes from their JWT (auth.getUser() below),
+// never from a client-supplied user id -- a client could otherwise farm
+// items for someone else's account.
 import { createClient } from "jsr:@supabase/supabase-js@2";
-
-const PHASE_1_ITEM_ID = "hat_crown";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -88,25 +86,30 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ amazeCount: newAmazeCount, itemDropped: false, reason: "no-photo" });
     }
 
-    // Phase 1: guaranteed drop of the one seeded item, no rarity/color roll
-    // yet (9, 5.4 -- "Phase 1은 확정 지급으로 시작해도 무방"). Duplicates are
-    // intentional (v2 2.2/8.4 -- no unique constraint on user_items
-    // anymore) -- always just insert a new row, never check for or react
-    // to an existing one.
+    // Random pick among the droppable items -- every seeded item currently
+    // shares one rarity tier (legendary), so this is 5.2 step 3 ("해당
+    // rarity 내에서 item 추첨") without the cross-rarity weighting from 5.3,
+    // which is still undecided. Colorable items (is_colorable=true, e.g. a
+    // future 비니) are excluded on purpose: this function doesn't roll a
+    // color yet, so it can't correctly hand one out.
+    const { data: droppableItems, error: itemsError } = await admin
+      .from("items")
+      .select("id, name, svg_path")
+      .eq("is_colorable", false);
+    if (itemsError) throw itemsError;
+    if (!droppableItems || droppableItems.length === 0) throw new Error("no-droppable-items");
+    const item = droppableItems[Math.floor(Math.random() * droppableItems.length)];
+
+    // Duplicates are intentional (v2 2.2/8.4 -- no unique constraint on
+    // user_items anymore) -- always just insert a new row, never check for
+    // or react to an existing one.
     const { error: insertError } = await admin.from("user_items").insert({
       user_id: userId,
-      item_id: PHASE_1_ITEM_ID,
+      item_id: item.id,
       color_hex: null,
       post_id: postId,
     });
     if (insertError) throw insertError;
-
-    const { data: item, error: itemError } = await admin
-      .from("items")
-      .select("id, name, svg_path")
-      .eq("id", PHASE_1_ITEM_ID)
-      .maybeSingle();
-    if (itemError) throw itemError;
 
     return jsonResponse({
       amazeCount: newAmazeCount,

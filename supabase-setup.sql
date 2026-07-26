@@ -230,3 +230,8 @@ alter table public.user_items
 --    this yet.
 alter table public.user_items
   add column consumed_at timestamptz;
+
+-- Seed 족두리 (v2 6, 9.2) -- fixed color, so no color-palette dependency
+-- like 비니 has. 비니 stays unseeded until its color palette is decided.
+insert into public.items (id, name, category, rarity, is_colorable, svg_path, sort_order)
+values ('hat_jokduri', '족두리', 'hat', 'legendary', false, '/hats/hat_jokduri.svg', 2);

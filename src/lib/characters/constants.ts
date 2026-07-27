@@ -15,14 +15,13 @@ export const CHARACTER_DISPLAY_NAMES: Record<CharacterName, string> = {
 /** Injected as --face-color on CharacterWithHat's root <svg> (see
  * CHARACTER_FILL_LAYER_IDS in each char_*.svg -- e.g. sealFill,
  * bearFill/bearFill_2/bearFill_3 -- all use fill="var(--face-color, white)").
- * Placeholder white until real per-character colors are decided; change
- * values here only, nothing else needs touching. */
+ * Change values here only, nothing else needs touching. */
 export const CHARACTER_FACE_COLORS: Record<CharacterName, string> = {
   seal: "#ffffff",
   bichon: "#ffffff",
   panda: "#ffffff",
   bear: "#ffffff",
-  mochi: "#ffffff",
+  mochi: "#EDE9FE",
 };
 
 export const CHARACTER_EXPRESSION_DISPLAY_NAMES: Record<CharacterExpression, string> = {

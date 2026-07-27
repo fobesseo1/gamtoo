@@ -1,8 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -100 270 370">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -100 270 370" overflow="visible">
 <defs>
 <radialGradient id="capDome" cx="0.35" cy="0.22" r="1.05"><stop offset="0" stop-color="var(--hat-light, #f0c893)"></stop><stop offset="0.55" stop-color="var(--hat-base, #d69a5a)"></stop><stop offset="1" stop-color="var(--hat-dark, #b0763a)"></stop></radialGradient>
 <linearGradient id="capBrim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--hat-light, #f0c893)"></stop><stop offset="0.5" stop-color="var(--hat-base, #d69a5a)"></stop><stop offset="1" stop-color="var(--hat-dark, #b0763a)"></stop></linearGradient>
 <radialGradient id="capBtn" cx="0.4" cy="0.3" r="0.9"><stop offset="0" stop-color="var(--hat-light, #f0c893)"></stop><stop offset="1" stop-color="var(--hat-dark, #b0763a)"></stop></radialGradient>
 </defs>
+<g transform="translate(0,40)">
 <path d="M60,34 C60,-48 210,-48 210,34 L210,38 L60,38 Z" fill="url(#capDome)"></path><circle cx="135" cy="-48" r="9" fill="url(#capBtn)"></circle><path d="M118,34 C150,30 185,26 205,20 C232,12 258,18 262,30 C264,36 250,42 224,42 C196,42 160,40 118,38 Z" fill="url(#capBrim)"></path><ellipse cx="105" cy="-6" rx="30" ry="16" fill="#ffffff" opacity="0.28" transform="rotate(-18 105 -14)"></ellipse><path d="M96,4 L94,34" stroke="var(--hat-dark, #b0763a)" stroke-width="4" stroke-linecap="round" opacity="0.35"></path><path d="M135,2 L135,34" stroke="var(--hat-dark, #b0763a)" stroke-width="4" stroke-linecap="round" opacity="0.35"></path><path d="M174,4 L176,34" stroke="var(--hat-dark, #b0763a)" stroke-width="4" stroke-linecap="round" opacity="0.35"></path>
+</g>
 </svg>

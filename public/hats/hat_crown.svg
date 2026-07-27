@@ -11,6 +11,7 @@
     <stop offset="1" stop-color="#93374c"></stop>
   </radialGradient>
 </defs>
+<g transform="translate(0,40)">
 <path d="M83,-48 C94,-30 101,-14 103,6 L69,12 C67,-12 73,-30 83,-48 Z" fill="url(#crGold)"></path>
 <path d="M187,-48 C176,-30 169,-14 167,6 L201,12 C203,-12 197,-30 187,-48 Z" fill="url(#crGold)"></path>
 <path d="M135,-74 C147,-50 155,-28 155,-2 L115,-2 C115,-28 123,-50 135,-74 Z" fill="url(#crGold)"></path>
@@ -26,4 +27,5 @@
 <circle cx="100" cy="28" r="5.5" fill="#c04a63"></circle>
 <circle cx="135" cy="28" r="5.5" fill="#5f9ea0"></circle>
 <circle cx="170" cy="28" r="5.5" fill="#c04a63"></circle>
+</g>
 </svg>

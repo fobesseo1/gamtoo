@@ -15,6 +15,7 @@
     <stop offset="1" stop-color="var(--hat-dark, #6f9c92)"></stop>
   </linearGradient>
 </defs>
+<g transform="translate(0,40)">
 <circle cx="135" cy="-62" r="21" fill="url(#bnPom)"></circle>
 <circle cx="128" cy="-68" r="7" fill="#ffffff" opacity="0.5"></circle>
 <path d="M63,24 C63,-46 207,-46 207,24 L207,28 L63,28 Z" fill="url(#bnDome)"></path>
@@ -25,4 +26,5 @@
 <path d="M135,17 L135,37" stroke="var(--hat-dark, #6f9c92)" stroke-width="4" stroke-linecap="round" opacity="0.3"></path>
 <path d="M160,17 L161,37" stroke="var(--hat-dark, #6f9c92)" stroke-width="4" stroke-linecap="round" opacity="0.3"></path>
 <path d="M185,17 L187,37" stroke="var(--hat-dark, #6f9c92)" stroke-width="4" stroke-linecap="round" opacity="0.3"></path>
+</g>
 </svg>

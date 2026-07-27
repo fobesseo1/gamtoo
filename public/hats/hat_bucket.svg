@@ -1,7 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -100 270 370">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -100 270 370" overflow="visible">
 <defs>
 <radialGradient id="bucketDome" cx="0.35" cy="0.22" r="1.05"><stop offset="0" stop-color="var(--hat-light, #f0c893)"></stop><stop offset="0.55" stop-color="var(--hat-base, #d69a5a)"></stop><stop offset="1" stop-color="var(--hat-dark, #b0763a)"></stop></radialGradient>
 <linearGradient id="bucketBrim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--hat-base, #d69a5a)"></stop><stop offset="0.5" stop-color="var(--hat-dark, #b0763a)"></stop><stop offset="1" stop-color="var(--hat-dark, #b0763a)"></stop></linearGradient>
 </defs>
+<g transform="translate(0,40)">
 <path d="M72,20 C72,-34 198,-34 198,20 L198,26 L72,26 Z" fill="url(#bucketDome)"></path><path d="M58,18 C58,6 212,6 212,18 C212,36 200,42 135,42 C70,42 58,36 58,18 Z" fill="url(#bucketBrim)"></path><ellipse cx="103" cy="-14" rx="26" ry="14" fill="#ffffff" opacity="0.25" transform="rotate(-18 103 -10)"></ellipse>
+</g>
 </svg>

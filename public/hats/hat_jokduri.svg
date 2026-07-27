@@ -10,6 +10,7 @@
     <stop offset="1" stop-color="#c04a63"></stop>
   </radialGradient>
 </defs>
+<g transform="translate(0,40)">
 <path d="M104,40 L96,-16 C96,-30 110,-38 135,-38 C160,-38 174,-30 174,-16 L166,40 Z" fill="url(#jdBody)"></path>
 <ellipse cx="135" cy="-27" rx="39" ry="11" fill="#4d5480"></ellipse>
 <ellipse cx="135" cy="-29" rx="32" ry="8" fill="#333a5e"></ellipse>
@@ -21,4 +22,5 @@
 <circle cx="135" cy="-33" r="6" fill="#ddb45c"></circle>
 <circle cx="135" cy="-45" r="11" fill="url(#jdBead)"></circle>
 <circle cx="131" cy="-49" r="3.5" fill="#ffffff" opacity="0.6"></circle>
+</g>
 </svg>

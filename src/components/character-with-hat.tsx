@@ -1,4 +1,5 @@
-import type { CharacterName } from "@/lib/characters/constants";
+import type { CSSProperties } from "react";
+import { CHARACTER_FACE_COLORS, type CharacterName } from "@/lib/characters/constants";
 import { InlineSvgContent } from "./inline-svg-content";
 
 interface CharacterWithHatProps {
@@ -19,7 +20,12 @@ interface CharacterWithHatProps {
  * correct here. */
 export function CharacterWithHat({ character, hatSvgPath, hatSilhouette, className }: CharacterWithHatProps) {
   return (
-    <svg viewBox="0 -100 270 370" overflow="visible" className={className}>
+    <svg
+      viewBox="0 -100 270 370"
+      overflow="visible"
+      className={className}
+      style={{ "--face-color": CHARACTER_FACE_COLORS[character] } as CSSProperties}
+    >
       <InlineSvgContent src={`/characters/char_${character}.svg`} />
       {hatSvgPath && <InlineSvgContent src={hatSvgPath} silhouette={hatSilhouette} />}
     </svg>
